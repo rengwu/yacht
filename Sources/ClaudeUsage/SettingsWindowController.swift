@@ -239,21 +239,41 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         return row([field, reset])
     }
 
+    /// A typed number and the stepper stay in sync (`syncMenuBarMaxAccountsControls`
+    /// pushes to whichever one didn't just change) — a stepper alone has no visible
+    /// number to type into, and a field alone has no click-to-nudge.
     private func menuBarMaxAccountsRow() -> NSView {
+        let field = NSTextField(string: "\(app.config.menuBarMaxAccounts)")
+        field.identifier = NSUserInterfaceItemIdentifier("menubar-max-accounts-field")
+        field.delegate = self
+        field.alignment = .center
+        field.widthAnchor.constraint(equalToConstant: 40).isActive = true
+
         let stepper = NSStepper()
+        stepper.identifier = NSUserInterfaceItemIdentifier("menubar-max-accounts-stepper")
         stepper.minValue = 0
         stepper.maxValue = 20
         stepper.integerValue = app.config.menuBarMaxAccounts
         stepper.target = self
         stepper.action = #selector(menuBarMaxAccountsChanged(_:))
-        let label = dimmed(menuBarMaxAccountsText())
-        label.identifier = NSUserInterfaceItemIdentifier("menubar-max-accounts-label")
-        return row([stepper, label])
+
+        return row([field, stepper, dimmed("0 = no limit")])
     }
 
-    private func menuBarMaxAccountsText() -> String {
+    /// Pushes the current value to both controls, wherever they are in the stack —
+    /// mirrors how `thresholdChanged` updates its label in place, so neither
+    /// control gets torn out from under an in-progress click or keystroke.
+    private func syncMenuBarMaxAccountsControls() {
         let n = app.config.menuBarMaxAccounts
-        return n == 0 ? "no limit" : "\(n) account\(n == 1 ? "" : "s")"
+        for view in stack.arrangedSubviews.compactMap({ ($0 as? NSStackView)?.arrangedSubviews }).joined() {
+            if let field = view as? NSTextField, field.identifier?.rawValue == "menubar-max-accounts-field" {
+                field.integerValue = n
+            }
+            if let stepper = view as? NSStepper,
+               stepper.identifier?.rawValue == "menubar-max-accounts-stepper" {
+                stepper.integerValue = n
+            }
+        }
     }
 
     // MARK: - Actions
@@ -351,13 +371,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
 
     @objc private func menuBarMaxAccountsChanged(_ sender: NSStepper) {
         app.update { $0.menuBarMaxAccounts = sender.integerValue }
-        // As with the threshold slider: update in place so the stepper doesn't
-        // get torn out from under a click-and-hold.
-        for case let text as NSTextField in stack.arrangedSubviews
-            .compactMap({ ($0 as? NSStackView)?.arrangedSubviews }).joined()
-        where text.identifier?.rawValue == "menubar-max-accounts-label" {
-            text.stringValue = menuBarMaxAccountsText()
-        }
+        syncMenuBarMaxAccountsControls()
     }
 
     /// Closing the window with a label field still being edited would otherwise
@@ -408,6 +422,12 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
                 $0.menuBarNoDataTemplate = text.isEmpty ? AppSettings.defaultMenuBarNoDataTemplate : text
             }
             field.stringValue = app.config.menuBarNoDataTemplate
+        case "menubar-max-accounts-field":
+            // Anything that isn't a number in range — blank, "abc", "-3" — settles
+            // back on the current value rather than erroring or going negative.
+            let n = max(0, min(20, Int(text) ?? app.config.menuBarMaxAccounts))
+            app.update { $0.menuBarMaxAccounts = n }
+            syncMenuBarMaxAccountsControls()
         default:
             guard id.hasPrefix("label:"), !text.isEmpty else { return }
             let dir = URL(fileURLWithPath: String(id.dropFirst("label:".count)))

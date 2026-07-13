@@ -69,19 +69,37 @@ func runConfigTests(_ t: Harness) {
             "embedded tap script matches tap/claude-usage-tap.sh byte for byte"
         )
 
+        // deployDir carries a space ("Application Support") on purpose: it is the
+        // real app location, and the space is exactly what broke the tap in
+        // acceptance. The returned command must be shell-quoted, not the bare path.
         let deployDir = root.appendingPathComponent("Application Support/ClaudeUsage")
+        let scriptURL = TapDeployment.scriptURL(in: deployDir)
         let command = try TapDeployment.deploy(to: deployDir)
         t.checkEqual(
-            command, deployDir.appendingPathComponent("claude-usage-tap.sh").path,
-            "deploy returns the command path"
+            command, "'\(scriptURL.path)'",
+            "deploy returns a shell-quoted command (path has a space)"
+        )
+        t.check(
+            command != scriptURL.path,
+            "the command is not the bare path — that is what the shell word-splits"
         )
         t.checkEqual(
-            try String(contentsOf: URL(fileURLWithPath: command), encoding: .utf8),
+            try String(contentsOf: scriptURL, encoding: .utf8),
             TapDeployment.script, "deployed script content"
         )
-        let perms = try fm.attributesOfItem(atPath: command)[.posixPermissions] as? Int
+        let perms = try fm.attributesOfItem(atPath: scriptURL.path)[.posixPermissions] as? Int
         t.checkEqual(perms, 0o755, "deployed script is executable")
         let again = try TapDeployment.deploy(to: deployDir)
         t.checkEqual(again, command, "deploy is idempotent")
+
+        // Shell-quoting holds up for the awkward paths too.
+        t.checkEqual(
+            TapDeployment.command(forScriptAt: URL(fileURLWithPath: "/a b/tap.sh")),
+            "'/a b/tap.sh'", "spaces are quoted"
+        )
+        t.checkEqual(
+            TapDeployment.command(forScriptAt: URL(fileURLWithPath: "/o'x/tap.sh")),
+            "'/o'\\''x/tap.sh'", "an embedded single quote is escaped"
+        )
     } catch { t.check(false, "deployment block threw \(error)") }
 }

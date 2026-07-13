@@ -10,8 +10,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         .appendingPathComponent("ClaudeUsage")
     static let configURL = supportDir.appendingPathComponent("config.json")
     /// The command the installer writes; detection compares against it whether
-    /// or not the script has been deployed yet.
-    static let tapCommand = TapDeployment.scriptURL(in: supportDir).path
+    /// or not the script has been deployed yet. Shell-quoted, because Claude Code
+    /// runs the statusLine value through a shell and the deploy path has a space.
+    static let tapCommand = TapDeployment.command(
+        forScriptAt: TapDeployment.scriptURL(in: supportDir)
+    )
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private var timer: Timer?
@@ -20,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var config = ConfigStore.load(from: AppDelegate.configURL)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        installMainMenu()
         refresh()
         // The snapshots only change while Claude Code runs, but countdowns and
         // staleness are relative to now, so redraw on a timer regardless.
@@ -29,6 +33,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // .common, or the countdowns freeze while the dropdown is being tracked.
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+    }
+
+    /// A menu-bar-only (`.accessory`) app has no main menu by default, which
+    /// silently disables the standard text-editing key equivalents — Cmd-A, C, V,
+    /// X, Z — because AppKit routes those through the Edit menu to the field
+    /// editor. This installs a minimal Edit menu (targets are nil, so they travel
+    /// the responder chain to whatever text field is being edited) purely to
+    /// restore those shortcuts in the settings window's fields.
+    private func installMainMenu() {
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(
+            withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+
+        let editItem = NSMenuItem()
+        editItem.submenu = editMenu
+
+        let mainMenu = NSMenu()
+        mainMenu.addItem(editItem)
+        NSApp.mainMenu = mainMenu
     }
 
     // MARK: - Config mutations (settings window calls these; UI updates at once)

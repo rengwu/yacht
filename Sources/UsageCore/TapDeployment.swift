@@ -38,8 +38,25 @@ public enum TapDeployment {
         directory.appendingPathComponent("claude-usage-tap.sh")
     }
 
+    /// The command string to store in settings.json. Claude Code runs the
+    /// statusLine value **through a shell**, so a script path containing spaces
+    /// — and the app's home, `~/Library/Application Support/ClaudeUsage`, has one
+    /// — must be shell-quoted, or the shell word-splits it and the tap never runs.
+    /// This failure is invisible from inside the app: a working status line is
+    /// silent, so a broken one looks identical to "no session yet." (Found in
+    /// acceptance, ticket 05.)
+    public static func command(forScriptAt url: URL) -> String {
+        shellSingleQuoted(url.path)
+    }
+
+    /// POSIX single-quote escaping: wrap in single quotes, closing and reopening
+    /// the quote around any embedded single quote (`'\''`).
+    static func shellSingleQuoted(_ s: String) -> String {
+        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
     /// Writes the script (idempotently) and marks it executable. Returns the
-    /// command string the installer should put into settings.json.
+    /// shell-safe command string the installer should put into settings.json.
     @discardableResult
     public static func deploy(to directory: URL) throws -> String {
         let fm = FileManager.default
@@ -47,6 +64,6 @@ public enum TapDeployment {
         let url = scriptURL(in: directory)
         try Data(script.utf8).write(to: url, options: .atomic)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
-        return url.path
+        return command(forScriptAt: url)
     }
 }

@@ -4,7 +4,7 @@ import UsageCore
 /// The settings window: register accounts, label them, install the tap, set
 /// the warn threshold. Pure projection + explicit actions; all facts (tap
 /// status, discovery) come from UsageCore.
-final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
+final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, NSWindowDelegate {
 
     private unowned let app: AppDelegate
     private let stack = NSStackView()
@@ -19,6 +19,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         window.title = "Claude Usage Settings"
         window.center()
         super.init(window: window)
+        window.delegate = self
 
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -212,6 +213,14 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         where text.identifier?.rawValue == "threshold-label" {
             text.stringValue = thresholdText()
         }
+    }
+
+    /// Closing the window with a label field still being edited would otherwise
+    /// drop the pending rename — `controlTextDidEndEditing` never fires because
+    /// editing never "ended." Resigning first responder ends it, committing the
+    /// edit through the same path. This is why no Save button is needed.
+    func windowWillClose(_ notification: Notification) {
+        window?.makeFirstResponder(nil)
     }
 
     /// Relabelling: text fields carry the account index in their tag.

@@ -37,7 +37,9 @@ three seams; run for real, not just green tests.
 
 ## Decisions so far
 
-<!-- one line per resolved ticket: gist + link. Empty until the first ticket resolves. -->
+<!-- one line per resolved ticket: gist + link. -->
+
+- [Build the tap: status-line script + installer, per spec](./tickets/01-the-tap.md) — `CLAUDE_CONFIG_DIR` propagates, so one shared script serves N accounts; tap + installer built and green; NB: no XCTest on this machine — tests run via `swift run UsageCoreTests`.
 
 ## Not yet specified
 

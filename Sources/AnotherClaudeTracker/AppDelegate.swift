@@ -7,7 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     static let supportDir = FileManager.default
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("ClaudeUsage")
+        .appendingPathComponent("AnotherClaudeTracker")
     static let configURL = supportDir.appendingPathComponent("config.json")
     /// The command the installer writes; detection compares against it whether
     /// or not the script has been deployed yet. Shell-quoted, because Claude Code

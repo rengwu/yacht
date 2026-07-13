@@ -1,5 +1,5 @@
 #!/bin/bash
-# claude-usage-tap.sh — Claude Code status line command for the ClaudeUsage menu bar app.
+# claude-usage-tap.sh — Claude Code status line command for the AnotherClaudeTracker menu bar app.
 #
 # Reads the status line JSON payload on stdin and captures its rate_limits block to
 # usage-snapshot.json inside the config directory of whichever account is running

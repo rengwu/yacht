@@ -11,7 +11,7 @@ swift build -c release --package-path "$root"
 
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS"
-cp "$root/.build/release/ClaudeUsage" "$app/Contents/MacOS/ClaudeUsage"
+cp "$root/.build/release/AnotherClaudeTracker" "$app/Contents/MacOS/AnotherClaudeTracker"
 
 cat >"$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -21,7 +21,7 @@ cat >"$app/Contents/Info.plist" <<PLIST
   <key>CFBundleName</key>            <string>another claude tracker</string>
   <key>CFBundleDisplayName</key>     <string>another claude tracker</string>
   <key>CFBundleIdentifier</key>      <string>local.another-claude-tracker</string>
-  <key>CFBundleExecutable</key>      <string>ClaudeUsage</string>
+  <key>CFBundleExecutable</key>      <string>AnotherClaudeTracker</string>
   <key>CFBundlePackageType</key>     <string>APPL</string>
   <key>CFBundleShortVersionString</key> <string>$version</string>
   <key>LSMinimumSystemVersion</key>  <string>13.0</string>

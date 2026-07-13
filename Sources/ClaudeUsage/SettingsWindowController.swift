@@ -77,16 +77,11 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
 
         stack.addArrangedSubview(caption("Menu bar text"))
         stack.addArrangedSubview(menuBarTemplateRow())
-        stack.addArrangedSubview(dimmed(
-            "{name} {bar} {pct} {reset_at} (8:00pm) {reset_in} (1h 24m) — same tokens as the"
-                + " dropdown row; anything else is literal."
-        ))
+        stack.addArrangedSubview(dimmed("Available variables: {name} {bar} {pct} {reset_at} {reset_in}"))
 
         stack.addArrangedSubview(caption("Menu bar text — no data yet"))
         stack.addArrangedSubview(menuBarNoDataTemplateRow())
-        stack.addArrangedSubview(dimmed(
-            "Only {name} substitutes here — there's no bar, percent, or reset time yet."
-        ))
+        stack.addArrangedSubview(dimmed("Available variables: {name}"))
 
         stack.addArrangedSubview(caption("Menu bar separator"))
         stack.addArrangedSubview(menuBarSeparatorRow())
@@ -96,9 +91,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
 
         stack.addArrangedSubview(caption("Dropdown row template"))
         stack.addArrangedSubview(rowTemplateRow())
-        stack.addArrangedSubview(dimmed(
-            "{name} {bar} {pct} {reset_at} (8:00pm) {reset_in} (1h 24m) — anything else is literal."
-        ))
+        stack.addArrangedSubview(dimmed("Available variables: {name} {bar} {pct} {reset_at} {reset_in}"))
 
         window?.layoutIfNeeded()
     }

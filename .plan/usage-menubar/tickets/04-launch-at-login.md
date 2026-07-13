@@ -1,6 +1,8 @@
 ---
 type: task
 blocked_by: [03]
+claimed_by: claude-code-session-2026-07-13-opus
+claimed_at: 2026-07-13T00:00:00Z
 ---
 
 # Build launch-at-login + lifecycle

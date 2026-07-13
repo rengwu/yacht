@@ -1,14 +1,34 @@
 import Cocoa
 import UsageCore
 
+extension NSColor {
+    convenience init(hex: UInt32) {
+        self.init(
+            red: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+
+    /// A color that resolves to a different hex value depending on whether
+    /// the current appearance is light or dark.
+    convenience init(light: UInt32, dark: UInt32) {
+        self.init(name: nil, dynamicProvider: { appearance in
+            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            return NSColor(hex: isDark ? dark : light)
+        })
+    }
+}
+
 /// The only place semantic tones become colours. Everything else about the
 /// display was decided in UsageCore.
 enum Style {
     static func color(_ tone: Tone) -> NSColor {
         switch tone {
         case .normal: return .labelColor
-        case .warn: return .systemOrange
-        case .critical: return .systemRed
+        case .warn: return NSColor(light: 0xeb9317, dark: 0xffbd61)
+        case .critical: return NSColor(light: 0xFF3B30, dark: 0xff9c9c)
         case .dimmed: return .secondaryLabelColor
         }
     }

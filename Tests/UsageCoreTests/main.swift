@@ -4,4 +4,5 @@
 let t = Harness()
 runInstallerTests(t)
 runDisplayTests(t)
+runConfigTests(t)
 t.finish()

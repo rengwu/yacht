@@ -41,6 +41,7 @@ three seams; run for real, not just green tests.
 
 - [Build the tap: status-line script + installer, per spec](./tickets/01-the-tap.md) — `CLAUDE_CONFIG_DIR` propagates, so one shared script serves N accounts; tap + installer built and green; NB: no XCTest on this machine — tests run via `swift run UsageCoreTests`.
 - [Build UsageCore: model + pure display view-model + display-seam tests](./tickets/02-usagecore.md) — the pure render function and its seam suite are green; SwiftPM → sealed `.app` pipeline proven, clearing the precondition for the SMAppService experiment; critical threshold derives as the midpoint of warn and 100.
+- [Build the UI: menu bar projection + settings/registration window](./tickets/03-menu-bar-and-settings.md) — status item, dropdown and settings window live as a decision-free projection; verified in the real menu bar, where the reset-boundary rule fired correctly on real data.
 
 ## Not yet specified
 

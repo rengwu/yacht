@@ -1,4 +1,7 @@
-// Placeholder executable: the AppKit projection arrives with the UI ticket
-// (.plan/usage-menubar/tickets/03-menu-bar-and-settings.md). Until then this
-// proves the SwiftPM → .app pipeline end to end.
-print("ClaudeUsage: UI not built yet — see .plan/usage-menubar/")
+import Cocoa
+
+let app = NSApplication.shared
+let delegate = AppDelegate()
+app.delegate = delegate
+app.setActivationPolicy(.accessory)  // menu bar only: no Dock icon, no app switcher
+app.run()

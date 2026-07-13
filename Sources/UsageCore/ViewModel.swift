@@ -55,10 +55,13 @@ public struct ViewModel: Equatable {
     public let menuBar: [StyledText]
     /// Dropdown sections, in registration order.
     public let accounts: [AccountView]
+    /// What the dropdown says when there is nothing to show.
+    public let emptyState: String?
 
-    public init(menuBar: [StyledText], accounts: [AccountView]) {
+    public init(menuBar: [StyledText], accounts: [AccountView], emptyState: String? = nil) {
         self.menuBar = menuBar
         self.accounts = accounts
+        self.emptyState = emptyState
     }
 }
 
@@ -72,7 +75,9 @@ public func render(accounts: [AccountState], settings: AppSettings, now: Date) -
     }
     return ViewModel(
         menuBar: segments,
-        accounts: accounts.map { accountView($0, settings: settings, now: now) }
+        accounts: accounts.map { accountView($0, settings: settings, now: now) },
+        emptyState: accounts.isEmpty
+            ? "No accounts registered — open Settings to add one" : nil
     )
 }
 

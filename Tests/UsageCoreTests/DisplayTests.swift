@@ -38,6 +38,8 @@ func runDisplayTests(_ t: Harness) {
         let vm = render(accounts: [], settings: settings, now: now)
         t.checkEqual(vm.menuBar, [StyledText("◐", .normal)], "zero accounts: bare glyph")
         t.checkEqual(vm.accounts, [], "zero accounts: empty dropdown")
+        t.checkEqual(vm.emptyState, "No accounts registered — open Settings to add one",
+                     "zero accounts: dropdown explains itself")
     }
 
     // MARK: Never reported — a dash, never 0%, and always explained

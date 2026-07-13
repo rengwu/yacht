@@ -1,6 +1,12 @@
 import Cocoa
 import UsageCore
 
+/// An "ⓘ" button that carries the text its popover should show — `NSButton` has
+/// nowhere else to hold that per-instance.
+private final class InfoButton: NSButton {
+    var helpText: String = ""
+}
+
 /// The settings window: register accounts, label them, install the tap, set
 /// the warn threshold. Pure projection + explicit actions; all facts (tap
 /// status, discovery) come from UsageCore.
@@ -455,15 +461,50 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         NSTextField(labelWithString: text)
     }
 
-    /// A caption with a native "(?)" affordance beside it, revealing `help` on
-    /// hover instead of printing it as a permanent line under the field — this is
-    /// the templates' token list, useful once and then just visual noise.
+    /// A caption with a small "ⓘ" beside it that reveals `help` in a popover on
+    /// click — this is the templates' token list, useful once and then just
+    /// visual noise if left as a permanent line under the field.
     private func captionRow(_ text: String, help: String) -> NSView {
-        let button = NSButton()
-        button.bezelStyle = .helpButton
-        button.title = ""
-        button.toolTip = help
+        let button = InfoButton()
+        button.image = NSImage(
+            systemSymbolName: "info.circle", accessibilityDescription: "More info"
+        )
+        button.bezelStyle = .regularSquare
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.helpText = help
+        button.target = self
+        button.action = #selector(showHelp(_:))
         return row([caption(text), button])
+    }
+
+    @objc private func showHelp(_ sender: InfoButton) {
+        let label = NSTextField(wrappingLabelWithString: sender.helpText)
+        label.font = .systemFont(ofSize: 12)
+        label.preferredMaxLayoutWidth = 260
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = NSView()
+        container.addSubview(label)
+        NSLayoutConstraint.activate([
+            // The width has to be pinned explicitly, not just capped via
+            // preferredMaxLayoutWidth: that only bounds how a wrapping label's
+            // *height* is computed, so without a real width constraint the
+            // container has no way to settle on a size, and the popover it drives
+            // collapses to a sliver instead of wrapping at 260pt.
+            label.widthAnchor.constraint(equalToConstant: 260),
+            label.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
+            label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12),
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+        ])
+
+        let controller = NSViewController()
+        controller.view = container
+        let popover = NSPopover()
+        popover.contentViewController = controller
+        popover.behavior = .transient  // dismisses on the next click elsewhere
+        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
     }
 
     private func dimmed(_ text: String) -> NSTextField {

@@ -82,13 +82,11 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         stack.addArrangedSubview(header("Advanced"))
 
         stack.addArrangedSubview(captionRow(
-            "Menu bar text", help: "Available variables: {name} {bar} {pct} {reset_at} {reset_in}"
+            "Menu bar text", variables: "{name} {bar} {pct} {reset_at} {reset_in}"
         ))
         stack.addArrangedSubview(menuBarTemplateRow())
 
-        stack.addArrangedSubview(captionRow(
-            "Menu bar text (no data yet)", help: "Available variables: {name}"
-        ))
+        stack.addArrangedSubview(captionRow("Menu bar text (no data yet)", variables: "{name}"))
         stack.addArrangedSubview(menuBarNoDataTemplateRow())
 
         stack.addArrangedSubview(caption("Menu bar separator"))
@@ -98,7 +96,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         stack.addArrangedSubview(menuBarMaxAccountsRow())
 
         stack.addArrangedSubview(captionRow(
-            "Dropdown row template", help: "Available variables: {name} {bar} {pct} {reset_at} {reset_in}"
+            "Dropdown row template", variables: "{name} {bar} {pct} {reset_at} {reset_in}"
         ))
         stack.addArrangedSubview(rowTemplateRow())
 
@@ -461,10 +459,11 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         NSTextField(labelWithString: text)
     }
 
-    /// A caption with a small "ⓘ" beside it that reveals `help` in a popover on
-    /// click — this is the templates' token list, useful once and then just
-    /// visual noise if left as a permanent line under the field.
-    private func captionRow(_ text: String, help: String) -> NSView {
+    /// A caption with a small "ⓘ" beside it that reveals `variables` in a popover
+    /// on click, under a bold "Available variables" title — this is the
+    /// template's token list, useful once and then just visual noise if left as
+    /// a permanent line under the field.
+    private func captionRow(_ text: String, variables: String) -> NSView {
         let button = InfoButton()
         button.image = NSImage(
             systemSymbolName: "info.circle", accessibilityDescription: "More info"
@@ -472,31 +471,40 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         button.bezelStyle = .regularSquare
         button.isBordered = false
         button.imagePosition = .imageOnly
-        button.helpText = help
+        button.helpText = variables
         button.target = self
         button.action = #selector(showHelp(_:))
         return row([caption(text), button])
     }
 
     @objc private func showHelp(_ sender: InfoButton) {
-        let label = NSTextField(wrappingLabelWithString: sender.helpText)
-        label.font = .systemFont(ofSize: 12)
-        label.preferredMaxLayoutWidth = 260
-        label.translatesAutoresizingMaskIntoConstraints = false
+        let title = NSTextField(labelWithString: "Available variables")
+        title.font = .boldSystemFont(ofSize: 12)
+
+        let body = NSTextField(wrappingLabelWithString: sender.helpText)
+        body.font = .systemFont(ofSize: 12)
+        body.preferredMaxLayoutWidth = 260
+
+        let content = NSStackView(views: [title, body])
+        content.orientation = .vertical
+        content.alignment = .leading
+        content.spacing = 4
+        content.translatesAutoresizingMaskIntoConstraints = false
 
         let container = NSView()
-        container.addSubview(label)
+        container.addSubview(content)
         NSLayoutConstraint.activate([
             // The width has to be pinned explicitly, not just capped via
             // preferredMaxLayoutWidth: that only bounds how a wrapping label's
-            // *height* is computed, so without a real width constraint the
-            // container has no way to settle on a size, and the popover it drives
-            // collapses to a sliver instead of wrapping at 260pt.
-            label.widthAnchor.constraint(equalToConstant: 260),
-            label.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
-            label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12),
-            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
-            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+            // *height* is computed, so without a real width constraint on `body`
+            // neither it, the stack around it, nor the popover built from that
+            // has any way to settle on a size — it collapses to a sliver instead
+            // of wrapping at 260pt.
+            body.widthAnchor.constraint(equalToConstant: 260),
+            content.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
+            content.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12),
+            content.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            content.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
         ])
 
         let controller = NSViewController()

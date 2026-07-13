@@ -23,6 +23,14 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
     /// instead of tearing down and rebuilding the popover just to change what
     /// twelve glyphs it's showing.
     private var iconPresetButtons: [NSButton] = []
+    /// The glyphs currently assigned to the preset grid, persisted across
+    /// opens and closes — only `shuffleMenuBarIconPresets` ever changes this.
+    /// Opening the popover shows whatever was last shown (or this one-time
+    /// random draw, the first time); closing it, by a pick or a click
+    /// elsewhere, never shuffles anything.
+    private var currentIconPresets = Array(
+        SettingsWindowController.menuBarIconPool.shuffled().prefix(SettingsWindowController.presetsShown)
+    )
 
     init(app: AppDelegate) {
         self.app = app
@@ -270,24 +278,23 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
 
     /// A 3x4 grid of preset buttons in a popover, rather than a permanent row —
     /// a dozen buttons sitting in the window at all times outweighs how often
-    /// they're actually used, which is once, maybe twice. The grid draws a
-    /// random dozen when it opens, same as before, but a Shuffle button below
-    /// it — not the act of opening — is now what redraws it: reopening the
-    /// popover repeatedly used to be the only way to see a different set,
-    /// which meant closing it (a click anywhere else) just to try again. Each
-    /// button's identifier carries the glyph itself, the same way an account
-    /// row's controls carry its config directory — the value the click means
-    /// to set, not a position to look it up from.
+    /// they're actually used, which is once, maybe twice. The grid renders
+    /// whatever `currentIconPresets` currently holds — opening never draws a
+    /// new set, only a Shuffle button below it does, so reopening the popover
+    /// (or dismissing it with a click elsewhere) shows the same dozen it did
+    /// last time. Each button's identifier carries the glyph itself, the same
+    /// way an account row's controls carry its config directory — the value
+    /// the click means to set, not a position to look it up from.
     @objc private func showMenuBarIconPresets(_ sender: NSButton) {
-        let buttons = (0..<Self.presetsShown).map { _ -> NSButton in
-            let button = NSButton(title: "", target: self, action: #selector(pickMenuBarIcon(_:)))
+        let buttons = currentIconPresets.map { icon -> NSButton in
+            let button = NSButton(title: icon, target: self, action: #selector(pickMenuBarIcon(_:)))
+            button.identifier = NSUserInterfaceItemIdentifier(icon)
             button.font = .systemFont(ofSize: 16)
             button.widthAnchor.constraint(equalToConstant: 28).isActive = true
             button.heightAnchor.constraint(equalToConstant: 28).isActive = true
             return button
         }
         iconPresetButtons = buttons
-        reshuffleIconPresets()
 
         let rows = stride(from: 0, to: buttons.count, by: Self.presetsColumns).map { start -> NSStackView in
             let end = min(start + Self.presetsColumns, buttons.count)
@@ -325,19 +332,16 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
     }
 
-    /// Draws a fresh random dozen and pushes them onto `iconPresetButtons` in
-    /// place. `shuffled()` on the whole pool before taking a `prefix` gives
-    /// both a random subset *and* a random order in one step.
-    private func reshuffleIconPresets() {
-        let picks = Self.menuBarIconPool.shuffled().prefix(iconPresetButtons.count)
-        for (button, icon) in zip(iconPresetButtons, picks) {
+    /// Draws a fresh random dozen into `currentIconPresets` — the only place
+    /// that ever changes — and pushes it onto `iconPresetButtons` in place.
+    /// `shuffled()` on the whole pool before taking a `prefix` gives both a
+    /// random subset *and* a random order in one step.
+    @objc private func shuffleMenuBarIconPresets() {
+        currentIconPresets = Array(Self.menuBarIconPool.shuffled().prefix(Self.presetsShown))
+        for (button, icon) in zip(iconPresetButtons, currentIconPresets) {
             button.title = icon
             button.identifier = NSUserInterfaceItemIdentifier(icon)
         }
-    }
-
-    @objc private func shuffleMenuBarIconPresets() {
-        reshuffleIconPresets()
     }
 
     /// Mirrors `syncMenuBarMaxAccountsControls`: pushes the current value to the

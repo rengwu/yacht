@@ -18,6 +18,11 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
     /// unlike the info popovers, a pick is a completed action, not something to
     /// leave open until the next click elsewhere.
     private var iconPresetsPopover: NSPopover?
+    /// The dozen preset buttons currently on screen, held onto so the Shuffle
+    /// button can redraw them in place — a new random sample, same buttons —
+    /// instead of tearing down and rebuilding the popover just to change what
+    /// twelve glyphs it's showing.
+    private var iconPresetButtons: [NSButton] = []
 
     init(app: AppDelegate) {
         self.app = app
@@ -263,44 +268,52 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         return row([field, reset, presets])
     }
 
-    /// A grid of preset buttons in a popover, rather than a permanent row —
+    /// A 3x4 grid of preset buttons in a popover, rather than a permanent row —
     /// a dozen buttons sitting in the window at all times outweighs how often
-    /// they're actually used, which is once, maybe twice. `shuffled()` on the
-    /// whole pool before taking a `prefix` gives both a random subset *and* a
-    /// random order in one step, so the grid is freshly drawn every time this
-    /// opens rather than showing the same dozen in the same spots. Each
+    /// they're actually used, which is once, maybe twice. The grid draws a
+    /// random dozen when it opens, same as before, but a Shuffle button below
+    /// it — not the act of opening — is now what redraws it: reopening the
+    /// popover repeatedly used to be the only way to see a different set,
+    /// which meant closing it (a click anywhere else) just to try again. Each
     /// button's identifier carries the glyph itself, the same way an account
     /// row's controls carry its config directory — the value the click means
     /// to set, not a position to look it up from.
     @objc private func showMenuBarIconPresets(_ sender: NSButton) {
-        func presetButton(_ icon: String) -> NSButton {
-            let button = NSButton(title: icon, target: self, action: #selector(pickMenuBarIcon(_:)))
-            button.identifier = NSUserInterfaceItemIdentifier(icon)
+        let buttons = (0..<Self.presetsShown).map { _ -> NSButton in
+            let button = NSButton(title: "", target: self, action: #selector(pickMenuBarIcon(_:)))
             button.font = .systemFont(ofSize: 16)
             button.widthAnchor.constraint(equalToConstant: 28).isActive = true
             button.heightAnchor.constraint(equalToConstant: 28).isActive = true
             return button
         }
+        iconPresetButtons = buttons
+        reshuffleIconPresets()
 
-        let picks = Array(Self.menuBarIconPool.shuffled().prefix(Self.presetsShown))
-        let rows = stride(from: 0, to: picks.count, by: Self.presetsColumns).map { start -> NSStackView in
-            let end = min(start + Self.presetsColumns, picks.count)
-            let buttonRow = NSStackView(views: picks[start..<end].map(presetButton))
+        let rows = stride(from: 0, to: buttons.count, by: Self.presetsColumns).map { start -> NSStackView in
+            let end = min(start + Self.presetsColumns, buttons.count)
+            let buttonRow = NSStackView(views: Array(buttons[start..<end]))
             buttonRow.spacing = 4
             return buttonRow
         }
         let grid = NSStackView(views: rows)
         grid.orientation = .vertical
         grid.spacing = 4
-        grid.translatesAutoresizingMaskIntoConstraints = false
+
+        let shuffle = NSButton(title: "Shuffle", target: self, action: #selector(shuffleMenuBarIconPresets))
+
+        let content = NSStackView(views: [grid, shuffle])
+        content.orientation = .vertical
+        content.alignment = .centerX
+        content.spacing = 8
+        content.translatesAutoresizingMaskIntoConstraints = false
 
         let container = NSView()
-        container.addSubview(grid)
+        container.addSubview(content)
         NSLayoutConstraint.activate([
-            grid.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
-            grid.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -10),
-            grid.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 10),
-            grid.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
+            content.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
+            content.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -10),
+            content.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 10),
+            content.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
         ])
 
         let controller = NSViewController()
@@ -310,6 +323,21 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         popover.behavior = .transient
         iconPresetsPopover = popover
         popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
+    }
+
+    /// Draws a fresh random dozen and pushes them onto `iconPresetButtons` in
+    /// place. `shuffled()` on the whole pool before taking a `prefix` gives
+    /// both a random subset *and* a random order in one step.
+    private func reshuffleIconPresets() {
+        let picks = Self.menuBarIconPool.shuffled().prefix(iconPresetButtons.count)
+        for (button, icon) in zip(iconPresetButtons, picks) {
+            button.title = icon
+            button.identifier = NSUserInterfaceItemIdentifier(icon)
+        }
+    }
+
+    @objc private func shuffleMenuBarIconPresets() {
+        reshuffleIconPresets()
     }
 
     /// Mirrors `syncMenuBarMaxAccountsControls`: pushes the current value to the
@@ -477,6 +505,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         syncMenuBarIconField()
         iconPresetsPopover?.close()
         iconPresetsPopover = nil
+        iconPresetButtons = []
     }
 
     @objc private func resetMenuBarIcon() {

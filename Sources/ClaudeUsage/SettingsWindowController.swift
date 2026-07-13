@@ -47,6 +47,9 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         stack.addArrangedSubview(header("General"))
         stack.addArrangedSubview(launchAtLoginRow())
         stack.addArrangedSubview(showMenuBarIconRow())
+        stack.addArrangedSubview(caption("Menu bar icon"))
+        stack.addArrangedSubview(menuBarIconRow())
+        stack.addArrangedSubview(menuBarIconPresetsRow())
         stack.addArrangedSubview(caption("Warning threshold"))
         stack.addArrangedSubview(thresholdRow())
 
@@ -205,6 +208,47 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         "orange at \(Int(app.config.warnThreshold))%, red at \(Int(app.config.settings.criticalThreshold))%"
     }
 
+    /// A mix of plain glyphs (native-feeling, monochrome, blend into the menu
+    /// bar) and emoji (render in full color, since this is text, not a template
+    /// image) — a starting point to click through rather than a fixed set: the
+    /// field beside it takes anything.
+    private static let menuBarIconPresets = ["◐", "◑", "◒", "●", "○", "✦", "⚡️", "📊", "🔋", "🤖"]
+
+    private func menuBarIconRow() -> NSView {
+        let field = NSTextField(string: app.config.menuBarIcon)
+        field.identifier = NSUserInterfaceItemIdentifier("menubar-icon")
+        field.delegate = self
+        field.alignment = .center
+        field.font = .systemFont(ofSize: 14)
+        field.widthAnchor.constraint(equalToConstant: 36).isActive = true
+        let reset = NSButton(title: "Reset", target: self, action: #selector(resetMenuBarIcon))
+        return row([field, reset])
+    }
+
+    /// Each button's identifier carries the glyph itself, the same way an
+    /// account row's controls carry its config directory — the value the click
+    /// means to set, not a position to look it up from.
+    private func menuBarIconPresetsRow() -> NSView {
+        let buttons = Self.menuBarIconPresets.map { icon -> NSButton in
+            let button = NSButton(title: icon, target: self, action: #selector(pickMenuBarIcon(_:)))
+            button.identifier = NSUserInterfaceItemIdentifier(icon)
+            button.font = .systemFont(ofSize: 14)
+            button.widthAnchor.constraint(equalToConstant: 28).isActive = true
+            return button
+        }
+        return row(buttons)
+    }
+
+    /// Mirrors `syncMenuBarMaxAccountsControls`: pushes the current value to the
+    /// field wherever it is in the stack, so a preset click updates it in place.
+    private func syncMenuBarIconField() {
+        for case let field as NSTextField in stack.arrangedSubviews
+            .compactMap({ ($0 as? NSStackView)?.arrangedSubviews }).joined()
+        where field.identifier?.rawValue == "menubar-icon" {
+            field.stringValue = app.config.menuBarIcon
+        }
+    }
+
     private func menuBarTemplateRow() -> NSView {
         let field = NSTextField(string: app.config.menuBarTemplate)
         field.identifier = NSUserInterfaceItemIdentifier("menubar-template")
@@ -354,6 +398,17 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         app.update { $0.showMenuBarIcon = sender.state == .on }
     }
 
+    @objc private func pickMenuBarIcon(_ sender: NSButton) {
+        guard let icon = sender.identifier?.rawValue else { return }
+        app.update { $0.menuBarIcon = icon }
+        syncMenuBarIconField()
+    }
+
+    @objc private func resetMenuBarIcon() {
+        app.update { $0.menuBarIcon = AppSettings.defaultMenuBarIcon }
+        syncMenuBarIconField()
+    }
+
     @objc private func resetMenuBarTemplate() {
         app.update { $0.menuBarTemplate = AppSettings.defaultMenuBarTemplate }
         reload()
@@ -422,6 +477,14 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
                 $0.menuBarNoDataTemplate = text.isEmpty ? AppSettings.defaultMenuBarNoDataTemplate : text
             }
             field.stringValue = app.config.menuBarNoDataTemplate
+        case "menubar-icon":
+            // `prefix(1)` on a `String` takes one grapheme cluster, not one UTF-16
+            // unit — an emoji built from several scalars (a flag, a skin-tone
+            // modifier) still comes through whole rather than split mid-glyph.
+            app.update {
+                $0.menuBarIcon = text.isEmpty ? AppSettings.defaultMenuBarIcon : String(text.prefix(1))
+            }
+            field.stringValue = app.config.menuBarIcon
         case "menubar-max-accounts-field":
             // Anything that isn't a number in range — blank, "abc", "-3" — settles
             // back on the current value rather than erroring or going negative.

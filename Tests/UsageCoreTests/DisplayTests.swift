@@ -53,6 +53,17 @@ func runDisplayTests(_ t: Harness) {
                      "zero accounts: dropdown explains itself")
     }
 
+    // MARK: The glyph itself is configurable, emoji included
+
+    do {
+        let custom = AppSettings(menuBarIcon: "🤖")
+        t.checkEqual(
+            render(accounts: [], settings: custom, now: now).menuBar, [StyledText("🤖", .normal)],
+            "the configured glyph replaces the default — it is rendered text, not an image, so"
+                + " nothing restricts it to a single-color symbol"
+        )
+    }
+
     // MARK: Never reported — a dash, never 0%, and always explained
 
     do {

@@ -21,6 +21,7 @@ func runConfigTests(_ t: Harness) {
             warnThreshold: 80,
             rowTemplate: "{name} {pct}",
             showMenuBarIcon: false,
+            menuBarIcon: "🤖",
             menuBarTemplate: "{name}: {pct}",
             menuBarNoDataTemplate: "{name} (waiting)",
             menuBarSeparator: " | ",
@@ -50,6 +51,7 @@ func runConfigTests(_ t: Harness) {
             "…and only the missing key falls back to its default"
         )
         t.checkEqual(loaded.showMenuBarIcon, true, "…every menu bar key not yet invented also defaults")
+        t.checkEqual(loaded.menuBarIcon, AppSettings.defaultMenuBarIcon, "…icon")
         t.checkEqual(loaded.menuBarTemplate, AppSettings.defaultMenuBarTemplate, "…template")
         t.checkEqual(loaded.menuBarNoDataTemplate, AppSettings.defaultMenuBarNoDataTemplate, "…no-data template")
         t.checkEqual(loaded.menuBarSeparator, AppSettings.defaultMenuBarSeparator, "…separator")

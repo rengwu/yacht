@@ -82,7 +82,7 @@ public func render(
 
     var segments: [StyledText] = []
     if settings.showMenuBarIcon || !hasVisibleText {
-        segments.append(StyledText("◐", .normal))
+        segments.append(StyledText(settings.menuBarIcon, .normal))
         if !accountSegments.isEmpty {
             segments.append(StyledText(" ", .dimmed))
         }

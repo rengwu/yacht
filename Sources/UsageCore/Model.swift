@@ -62,9 +62,16 @@ public struct AppSettings: Equatable {
 
     public static let defaultRowTemplate = "{name}  {bar}  {pct}  ·  reset {reset_at}"
 
-    /// Whether the status item shows the "◐" glyph. Not absolute: `render` shows
+    /// Whether the status item shows `menuBarIcon`. Not absolute: `render` shows
     /// it anyway when there would otherwise be nothing to click — see `menuBar`.
     public var showMenuBarIcon: Bool
+
+    /// The glyph itself — any single character, emoji included: the status item
+    /// is rendered as attributed text, never an `NSImage`, so nothing forces it
+    /// to a monochrome "template" icon the way a real image asset would.
+    public var menuBarIcon: String
+
+    public static let defaultMenuBarIcon = "◐"
 
     /// One account's segment of the status item, as a template over the same
     /// tokens as `rowTemplate` (`{bar}`/`{reset_at}`/`{reset_in}` all work, though
@@ -98,6 +105,7 @@ public struct AppSettings: Equatable {
         warnThreshold: Double = 75,
         rowTemplate: String = AppSettings.defaultRowTemplate,
         showMenuBarIcon: Bool = true,
+        menuBarIcon: String = AppSettings.defaultMenuBarIcon,
         menuBarTemplate: String = AppSettings.defaultMenuBarTemplate,
         menuBarNoDataTemplate: String = AppSettings.defaultMenuBarNoDataTemplate,
         menuBarSeparator: String = AppSettings.defaultMenuBarSeparator,
@@ -106,6 +114,7 @@ public struct AppSettings: Equatable {
         self.warnThreshold = warnThreshold
         self.rowTemplate = rowTemplate
         self.showMenuBarIcon = showMenuBarIcon
+        self.menuBarIcon = menuBarIcon
         self.menuBarTemplate = menuBarTemplate
         self.menuBarNoDataTemplate = menuBarNoDataTemplate
         self.menuBarSeparator = menuBarSeparator

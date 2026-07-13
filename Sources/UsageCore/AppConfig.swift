@@ -7,6 +7,7 @@ public struct AppConfig: Equatable, Codable {
     public var warnThreshold: Double
     public var rowTemplate: String
     public var showMenuBarIcon: Bool
+    public var menuBarIcon: String
     public var menuBarTemplate: String
     public var menuBarNoDataTemplate: String
     public var menuBarSeparator: String
@@ -17,6 +18,7 @@ public struct AppConfig: Equatable, Codable {
         warnThreshold: Double = 75,
         rowTemplate: String = AppSettings.defaultRowTemplate,
         showMenuBarIcon: Bool = true,
+        menuBarIcon: String = AppSettings.defaultMenuBarIcon,
         menuBarTemplate: String = AppSettings.defaultMenuBarTemplate,
         menuBarNoDataTemplate: String = AppSettings.defaultMenuBarNoDataTemplate,
         menuBarSeparator: String = AppSettings.defaultMenuBarSeparator,
@@ -26,6 +28,7 @@ public struct AppConfig: Equatable, Codable {
         self.warnThreshold = warnThreshold
         self.rowTemplate = rowTemplate
         self.showMenuBarIcon = showMenuBarIcon
+        self.menuBarIcon = menuBarIcon
         self.menuBarTemplate = menuBarTemplate
         self.menuBarNoDataTemplate = menuBarNoDataTemplate
         self.menuBarSeparator = menuBarSeparator
@@ -45,6 +48,8 @@ public struct AppConfig: Equatable, Codable {
             rowTemplate: try c.decodeIfPresent(String.self, forKey: .rowTemplate)
                 ?? AppSettings.defaultRowTemplate,
             showMenuBarIcon: try c.decodeIfPresent(Bool.self, forKey: .showMenuBarIcon) ?? true,
+            menuBarIcon: try c.decodeIfPresent(String.self, forKey: .menuBarIcon)
+                ?? AppSettings.defaultMenuBarIcon,
             menuBarTemplate: try c.decodeIfPresent(String.self, forKey: .menuBarTemplate)
                 ?? AppSettings.defaultMenuBarTemplate,
             menuBarNoDataTemplate: try c.decodeIfPresent(String.self, forKey: .menuBarNoDataTemplate)
@@ -60,6 +65,7 @@ public struct AppConfig: Equatable, Codable {
             warnThreshold: warnThreshold,
             rowTemplate: rowTemplate,
             showMenuBarIcon: showMenuBarIcon,
+            menuBarIcon: menuBarIcon,
             menuBarTemplate: menuBarTemplate,
             menuBarNoDataTemplate: menuBarNoDataTemplate,
             menuBarSeparator: menuBarSeparator,

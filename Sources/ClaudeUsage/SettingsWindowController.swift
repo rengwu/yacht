@@ -75,13 +75,15 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
 
         stack.addArrangedSubview(header("Advanced"))
 
-        stack.addArrangedSubview(caption("Menu bar text"))
+        stack.addArrangedSubview(captionRow(
+            "Menu bar text", help: "Available variables: {name} {bar} {pct} {reset_at} {reset_in}"
+        ))
         stack.addArrangedSubview(menuBarTemplateRow())
-        stack.addArrangedSubview(dimmed("Available variables: {name} {bar} {pct} {reset_at} {reset_in}"))
 
-        stack.addArrangedSubview(caption("Menu bar text — no data yet"))
+        stack.addArrangedSubview(captionRow(
+            "Menu bar text (no data yet)", help: "Available variables: {name}"
+        ))
         stack.addArrangedSubview(menuBarNoDataTemplateRow())
-        stack.addArrangedSubview(dimmed("Available variables: {name}"))
 
         stack.addArrangedSubview(caption("Menu bar separator"))
         stack.addArrangedSubview(menuBarSeparatorRow())
@@ -89,9 +91,10 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         stack.addArrangedSubview(caption("Max accounts shown in menu bar"))
         stack.addArrangedSubview(menuBarMaxAccountsRow())
 
-        stack.addArrangedSubview(caption("Dropdown row template"))
+        stack.addArrangedSubview(captionRow(
+            "Dropdown row template", help: "Available variables: {name} {bar} {pct} {reset_at} {reset_in}"
+        ))
         stack.addArrangedSubview(rowTemplateRow())
-        stack.addArrangedSubview(dimmed("Available variables: {name} {bar} {pct} {reset_at} {reset_in}"))
 
         window?.layoutIfNeeded()
     }
@@ -450,6 +453,17 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
     /// a section header, since it isn't one.
     private func caption(_ text: String) -> NSTextField {
         NSTextField(labelWithString: text)
+    }
+
+    /// A caption with a native "(?)" affordance beside it, revealing `help` on
+    /// hover instead of printing it as a permanent line under the field — this is
+    /// the templates' token list, useful once and then just visual noise.
+    private func captionRow(_ text: String, help: String) -> NSView {
+        let button = NSButton()
+        button.bezelStyle = .helpButton
+        button.title = ""
+        button.toolTip = help
+        return row([caption(text), button])
     }
 
     private func dimmed(_ text: String) -> NSTextField {

@@ -1,6 +1,8 @@
 ---
 type: task
 blocked_by: []
+claimed_by: claude-code-session-2026-07-13-fable
+claimed_at: 2026-07-13T03:23:16Z
 ---
 
 # Build UsageCore: model + pure display view-model + display-seam tests

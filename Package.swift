@@ -7,6 +7,12 @@ let package = Package(
     targets: [
         // Core library: no AppKit, ever. Model, display logic, tap installer.
         .target(name: "UsageCore", path: "Sources/UsageCore"),
+        // The app: a dumb projection of UsageCore's view model.
+        .executableTarget(
+            name: "ClaudeUsage",
+            dependencies: ["UsageCore"],
+            path: "Sources/ClaudeUsage"
+        ),
         // Tests are a plain executable run with `swift run UsageCoreTests`:
         // this machine has Command Line Tools only, and XCTest ships with Xcode.
         .executableTarget(
@@ -14,7 +20,5 @@ let package = Package(
             dependencies: ["UsageCore"],
             path: "Tests/UsageCoreTests"
         ),
-        // The ClaudeUsage executable target (AppKit projection) arrives with the
-        // UI tickets; until then the prototype lives in .plan/usage-menubar/assets/.
     ]
 )

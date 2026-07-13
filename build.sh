@@ -4,14 +4,11 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")" && pwd)"
 app="$root/build/ClaudeUsage.app"
 
+swift build -c release --package-path "$root"
+
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS"
-
-swiftc -O \
-  -target arm64-apple-macos13 \
-  -framework Cocoa \
-  -o "$app/Contents/MacOS/ClaudeUsage" \
-  "$root/Sources/main.swift"
+cp "$root/.build/release/ClaudeUsage" "$app/Contents/MacOS/ClaudeUsage"
 
 cat >"$app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -30,5 +27,9 @@ cat >"$app/Contents/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+
+# Seal the bundle: the launch-at-login ticket needs a properly signed bundle,
+# and an unsealed ad-hoc one is exactly what SMAppService tends to reject.
+codesign --force --deep --sign - "$app"
 
 echo "built: $app"

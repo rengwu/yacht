@@ -1,0 +1,82 @@
+import Foundation
+
+/// An account is a (label, config directory) pair, and the config directory is
+/// its identity: it holds the auth session that defines the subscription, and
+/// that account's snapshot lives inside it. The shell alias that selects the
+/// account is incidental and unknown to this app.
+public struct Account: Equatable {
+    public let label: String
+    public let configDir: URL
+
+    public init(label: String, configDir: URL) {
+        self.label = label
+        self.configDir = configDir
+    }
+}
+
+/// One rate-limit window: the used percentage as reported (may be fractional)
+/// and the moment it resets. Whether the window is *effectively* empty is a
+/// question about "now", answered at render time — never stored.
+public struct LimitWindow: Equatable {
+    public let usedPercentage: Double
+    public let resetsAt: Date
+
+    public init(usedPercentage: Double, resetsAt: Date) {
+        self.usedPercentage = usedPercentage
+        self.resetsAt = resetsAt
+    }
+}
+
+/// The rate-limit block plus the time it was captured. Either window may be
+/// independently absent; both are absent for accounts not on a subscription
+/// plan or before a session's first API response.
+public struct Snapshot: Equatable {
+    public let fiveHour: LimitWindow?
+    public let sevenDay: LimitWindow?
+    public let updatedAt: Date
+
+    public init(fiveHour: LimitWindow?, sevenDay: LimitWindow?, updatedAt: Date) {
+        self.fiveHour = fiveHour
+        self.sevenDay = sevenDay
+        self.updatedAt = updatedAt
+    }
+}
+
+/// App settings. The user sets exactly one threshold; critical is derived — the
+/// midpoint between warn and 100 — so the pair can never be mis-ordered.
+public struct AppSettings: Equatable {
+    /// At or above this percentage a figure renders as `.warn`.
+    public var warnThreshold: Double
+
+    /// At or above this a figure renders as `.critical`. Derived, not settable.
+    public var criticalThreshold: Double { warnThreshold + (100 - warnThreshold) / 2 }
+
+    public init(warnThreshold: Double = 75) {
+        self.warnThreshold = warnThreshold
+    }
+}
+
+/// Everything the composition root gathered about one account — the input to
+/// the pure render function. `snapshot == nil` means never reported (or an
+/// unreadable snapshot, which the user is shown the same way: as no data).
+public struct AccountState: Equatable {
+    public let account: Account
+    public let snapshot: Snapshot?
+    public let tapStatus: TapStatus
+
+    public init(account: Account, snapshot: Snapshot?, tapStatus: TapStatus) {
+        self.account = account
+        self.snapshot = snapshot
+        self.tapStatus = tapStatus
+    }
+
+    /// Impure gatherer for the composition root: reads the snapshot and detects
+    /// the tap in one pass over the account's config directory.
+    public static func gather(account: Account, tapCommand: String) -> AccountState {
+        AccountState(
+            account: account,
+            snapshot: SnapshotReader.read(configDir: account.configDir),
+            tapStatus: TapInstaller.detect(configDir: account.configDir, tapCommand: tapCommand)
+        )
+    }
+}

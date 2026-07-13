@@ -40,6 +40,7 @@ three seams; run for real, not just green tests.
 <!-- one line per resolved ticket: gist + link. -->
 
 - [Build the tap: status-line script + installer, per spec](./tickets/01-the-tap.md) — `CLAUDE_CONFIG_DIR` propagates, so one shared script serves N accounts; tap + installer built and green; NB: no XCTest on this machine — tests run via `swift run UsageCoreTests`.
+- [Build UsageCore: model + pure display view-model + display-seam tests](./tickets/02-usagecore.md) — the pure render function and its seam suite are green; SwiftPM → sealed `.app` pipeline proven, clearing the precondition for the SMAppService experiment; critical threshold derives as the midpoint of warn and 100.
 
 ## Not yet specified
 

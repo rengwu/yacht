@@ -112,7 +112,7 @@ struct LaunchAgentLoginItem: LoginItem {
 
 // MARK: - Mechanism choice (ticket-04 experiment outcome)
 
-private let bundleIdentifier = "local.claude-usage-menubar"
+private let bundleIdentifier = "local.another-claude-tracker"
 
 /// Selects the launch-at-login mechanism for this build.
 ///

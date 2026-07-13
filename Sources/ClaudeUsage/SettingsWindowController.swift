@@ -35,11 +35,11 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
     init(app: AppDelegate) {
         self.app = app
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 420),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 420),
             styleMask: [.titled, .closable],
             backing: .buffered, defer: false
         )
-        window.title = "Claude Usage Settings"
+        window.title = "another claude tracker settings"
         window.center()
         super.init(window: window)
         window.delegate = self
@@ -138,10 +138,10 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         let label = NSTextField(string: account.label)
         label.identifier = NSUserInterfaceItemIdentifier("label:" + account.configDir.path)
         label.delegate = self
-        label.widthAnchor.constraint(equalToConstant: 110).isActive = true
+        label.widthAnchor.constraint(equalToConstant: 95).isActive = true
 
         let path = dimmed(abbreviate(account.configDir))
-        path.widthAnchor.constraint(equalToConstant: 150).isActive = true
+        path.widthAnchor.constraint(equalToConstant: 120).isActive = true
 
         let status = TapInstaller.detect(
             configDir: account.configDir, tapCommand: AppDelegate.tapCommand
@@ -700,7 +700,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
     private func separator() -> NSView {
         let box = NSBox()
         box.boxType = .separator
-        box.widthAnchor.constraint(equalToConstant: 568).isActive = true
+        box.widthAnchor.constraint(equalToConstant: 528).isActive = true
         return box
     }
 

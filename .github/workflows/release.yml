@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          ./build.sh "$version"
+
+      - name: Zip app
+        run: |
+          cd build
+          ditto -c -k --sequesterRsrc --keepParent another-claude-tracker.app \
+            "another-claude-tracker-${GITHUB_REF_NAME}.zip"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/another-claude-tracker-*.zip
+          generate_release_notes: true

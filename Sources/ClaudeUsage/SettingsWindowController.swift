@@ -216,37 +216,31 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
     /// random on every open, so the grid is never the same list twice. Grouped
     /// by theme rather than picked at random itself: AI/hardware, time (the
     /// moon phases echo ◐ directly), usage/metrics, the uncanny/mystical angle
-    /// on what a model actually is, plain colored dots as the simplest possible
-    /// status marker, learning, thinking, levels/progress, "juice" (both the
-    /// drink and the slang for power — this app is a power-limit tracker),
-    /// spinning/cyclical motion, plain fun, and a few human ones for the
-    /// person on the other end of the session. A starting point regardless —
-    /// the field beside it takes anything.
+    /// on what a model actually is, learning, thinking, plain fun, expressions,
+    /// body/communication, people, animals, nature/food, alerts/signals, and
+    /// objects. A starting point regardless — the field beside it takes
+    /// anything.
     private static let menuBarIconPool: [String] = ["◐"] + [
-        // AI / hardware
-        "🤖", "👾", "🧠", "🦾", "👽", "🛸", "💻", "🖥️", "⌨️", "🔌",
-        // time / countdown
+        "🤖", "👾", "🧠", "🦾", "👽", "🛸", "💻", "🖥️", "⌨️",
         "⏳", "⌛", "⏱️", "⏰", "🕰️", "⏲️", "🌙", "🌗", "🌘", "🌑",
-        // usage / power / metrics
-        "⚡", "🔋", "🪫", "🎚️", "🎛️", "🌡️", "📈", "📉", "📊", "🧮",
-        // mystical / uncanny
-        "🔮", "✨", "🪄", "🌀", "💫", "🌌", "🪐", "🌠", "☄️", "🛰️",
-        // plain dots — the simplest status marker there is
-        "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚫", "⚪", "🧿", "🗝️",
-        // learning
-        "📚", "🎓", "🔬", "🧪",
-        // thinking
-        "💭", "💡", "🧩", "🤔",
-        // levels / progress
-        "📶", "🪜", "🏔️", "🥇",
-        // juice — literally, and the slang for power
-        "🧃", "🥤", "🍹", "🍋",
-        // spinning / cyclical
-        "🌪️", "🔄", "🎡", "♻️",
-        // fun
-        "🎉", "🎲", "🌈", "🎨", "🃏",
-        // human
-        "🧑‍💻", "👤", "🙋", "🫡🥲✌️👀👀🫪",
+        "⚡", "🔋", "🪫",   "🌡️", "📈", "📉", "📊", "🧮",
+        "🔮", "✨", "🪄", "🌀", "💫", "🪐", "🌠", "☄️", "🛰️",
+        "📚", "🎓", "🔬", "🧪", "💡", "🧩", "🤔","🧃", "🌪️", "🔄", "🎡",
+        "🎉", "🎲", "🌈", "🎨",
+        // expressions
+        "😎", "🤓", "🧐", "🤤",
+        // body / communication
+        "👀", "🫀", "✍️", "💭", "💬", "🗨️", "🗣️",
+        // people
+        "💁", "👨‍🍳", "👩‍🔬", "🧞‍♂️", "👯",
+        // animals
+        "🦧", "🐎", "🦮", "🐥", "🐸", "🦦", "🦞", "🐌",
+        // nature / food
+        "🌱", "☘️", "🍯", "🍼", "🍕", "🍞",
+        // alerts / signals
+        "🚨", "🚦", "🛎️", "🔔", "📶", "✳️", "🏁",
+        // objects
+        "🚀", "🔥", "🪩", "🧨", "💎", "💣", "🗿", "🚬", "🚰", "🫪",
     ]
 
     /// How many of the pool the popover grid holds at once, laid out `columns`

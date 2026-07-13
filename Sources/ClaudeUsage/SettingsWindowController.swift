@@ -211,13 +211,32 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         "orange at \(Int(app.config.warnThreshold))%, red at \(Int(app.config.settings.criticalThreshold))%"
     }
 
-    /// A mix of plain glyphs (native-feeling, monochrome, blend into the menu
-    /// bar) and emoji picked to fit a rate-limit tracker specifically —
-    /// ⏳ for a ticking window, 🧠 for the model, 🪫 for what hitting the
-    /// limit feels like, 🎛️/🧮 for a dashboard/tally — over the more generic
-    /// ⚡️/📊/🤖 this used to offer. A starting point to click through rather
-    /// than a fixed set: the field beside it takes anything.
-    private static let menuBarIconPresets = ["◐", "◑", "●", "✦", "⏳", "🧠", "🪫", "🎛️", "🧮", "👾"]
+    /// The default glyph, plus a much larger pool than the popover ever shows
+    /// at once — `showMenuBarIconPresets` samples `presetsShown` of these at
+    /// random on every open, so the grid is never the same list twice. Grouped
+    /// by theme rather than picked at random itself: AI/hardware, time (the
+    /// moon phases echo ◐ directly), usage/metrics, the uncanny/mystical angle
+    /// on what a model actually is, and plain colored dots as the simplest
+    /// possible status marker. A starting point regardless — the field beside
+    /// it takes anything.
+    private static let menuBarIconPool: [String] = ["◐"] + [
+        // AI / hardware
+        "🤖", "👾", "🧠", "🦾", "👽", "🛸", "💻", "🖥️", "⌨️", "🔌",
+        // time / countdown
+        "⏳", "⌛", "⏱️", "⏰", "🕰️", "⏲️", "🌙", "🌗", "🌘", "🌑",
+        // usage / power / metrics
+        "⚡", "🔋", "🪫", "🎚️", "🎛️", "🌡️", "📈", "📉", "📊", "🧮",
+        // mystical / uncanny
+        "🔮", "✨", "🪄", "🌀", "💫", "🌌", "🪐", "🌠", "☄️", "🛰️",
+        // plain dots — the simplest status marker there is
+        "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚫", "⚪", "🧿", "🗝️",
+    ]
+
+    /// How many of the pool the popover grid holds at once, laid out `columns`
+    /// wide. 12 sits comfortably in the 8–16 range a popover can hold without
+    /// feeling either sparse or crowded.
+    private static let presetsShown = 12
+    private static let presetsColumns = 4
 
     private func menuBarIconRow() -> NSView {
         let field = NSTextField(string: app.config.menuBarIcon)
@@ -234,11 +253,14 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
     }
 
     /// A grid of preset buttons in a popover, rather than a permanent row —
-    /// ten buttons sitting in the window at all times outweighs how often
-    /// they're actually used, which is once, maybe twice. Each button's
-    /// identifier carries the glyph itself, the same way an account row's
-    /// controls carry its config directory — the value the click means to
-    /// set, not a position to look it up from.
+    /// a dozen buttons sitting in the window at all times outweighs how often
+    /// they're actually used, which is once, maybe twice. `shuffled()` on the
+    /// whole pool before taking a `prefix` gives both a random subset *and* a
+    /// random order in one step, so the grid is freshly drawn every time this
+    /// opens rather than showing the same dozen in the same spots. Each
+    /// button's identifier carries the glyph itself, the same way an account
+    /// row's controls carry its config directory — the value the click means
+    /// to set, not a position to look it up from.
     @objc private func showMenuBarIconPresets(_ sender: NSButton) {
         func presetButton(_ icon: String) -> NSButton {
             let button = NSButton(title: icon, target: self, action: #selector(pickMenuBarIcon(_:)))
@@ -249,10 +271,10 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
             return button
         }
 
-        // Two rows of five reads better in a compact popover than one long strip.
-        let rows = stride(from: 0, to: Self.menuBarIconPresets.count, by: 5).map { start -> NSStackView in
-            let end = min(start + 5, Self.menuBarIconPresets.count)
-            let buttonRow = NSStackView(views: Self.menuBarIconPresets[start..<end].map(presetButton))
+        let picks = Array(Self.menuBarIconPool.shuffled().prefix(Self.presetsShown))
+        let rows = stride(from: 0, to: picks.count, by: Self.presetsColumns).map { start -> NSStackView in
+            let end = min(start + Self.presetsColumns, picks.count)
+            let buttonRow = NSStackView(views: picks[start..<end].map(presetButton))
             buttonRow.spacing = 4
             return buttonRow
         }

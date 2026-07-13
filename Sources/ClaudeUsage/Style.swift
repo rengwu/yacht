@@ -24,20 +24,38 @@ enum Style {
         return title
     }
 
+    /// A disabled `NSMenuItem` — the state every row here is in, since none of
+    /// them are commands — gets its title drawn through AppKit's own disabled
+    /// style, which dims whatever colour `attributedTitle` specifies on top of
+    /// whatever dimming the tone already called for. `.warn`/`.critical`'s
+    /// saturated system colours mostly survive that; `.normal`/`.dimmed` wash
+    /// out to a flat, low-contrast grey. A custom view sidesteps it: `isEnabled
+    /// = false` still suppresses the hover highlight and click (a custom view
+    /// on a disabled item draws with no highlight, same as a plain title
+    /// would), but the view is responsible for its own drawing, so the text
+    /// colour actually painted is the one this function set.
     static func menuLabel(
         _ text: String, tone: Tone = .normal, monospace: Bool = false, indent: Bool = false
     ) -> NSMenuItem {
         let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
         item.isEnabled = false
-        item.attributedTitle = NSAttributedString(
-            string: (indent ? "    " : "") + text,
-            attributes: [
-                .font: monospace
-                    ? NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-                    : NSFont.systemFont(ofSize: 12),
-                .foregroundColor: color(tone),
-            ]
-        )
+
+        let label = NSTextField(labelWithString: text)
+        label.font = monospace
+            ? .monospacedSystemFont(ofSize: 12, weight: .regular)
+            : .systemFont(ofSize: 12)
+        label.textColor = color(tone)
+        label.sizeToFit()
+
+        let leading: CGFloat = indent ? 34 : 14
+        label.frame.origin = NSPoint(x: leading, y: 3)
+
+        let container = NSView(frame: NSRect(
+            x: 0, y: 0, width: leading + label.frame.width + 14, height: label.frame.height + 6
+        ))
+        container.addSubview(label)
+        item.view = container
+
         return item
     }
 }

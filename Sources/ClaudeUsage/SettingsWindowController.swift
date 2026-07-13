@@ -36,6 +36,17 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
     func reload() {
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
+        // MARK: General
+
+        stack.addArrangedSubview(header("General"))
+        stack.addArrangedSubview(launchAtLoginRow())
+        stack.addArrangedSubview(caption("Warning threshold"))
+        stack.addArrangedSubview(thresholdRow())
+
+        stack.addArrangedSubview(separator())
+
+        // MARK: Accounts
+
         stack.addArrangedSubview(header("Accounts"))
         if app.config.accounts.isEmpty {
             stack.addArrangedSubview(dimmed("None registered yet."))
@@ -46,28 +57,27 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
 
         let discovered = discoveredDirs()
         if !discovered.isEmpty {
-            stack.addArrangedSubview(header("Discovered"))
+            stack.addArrangedSubview(caption("Discovered"))
             for dir in discovered {
                 stack.addArrangedSubview(discoveredRow(dir))
             }
         }
 
         let addButton = NSButton(
-            title: "Add Folder…", target: self, action: #selector(addFolder)
+            title: "Add Claude Config Folder…", target: self, action: #selector(addFolder)
         )
         stack.addArrangedSubview(addButton)
 
-        stack.addArrangedSubview(header("Warning threshold"))
-        stack.addArrangedSubview(thresholdRow())
+        stack.addArrangedSubview(separator())
 
-        stack.addArrangedSubview(header("Dropdown row"))
+        // MARK: Advanced
+
+        stack.addArrangedSubview(header("Advanced"))
+        stack.addArrangedSubview(caption("Dropdown row template"))
         stack.addArrangedSubview(rowTemplateRow())
         stack.addArrangedSubview(dimmed(
             "{name} {bar} {pct} {reset_at} (8:00pm) {reset_in} (1h 24m) — anything else is literal."
         ))
-
-        stack.addArrangedSubview(header("Startup"))
-        stack.addArrangedSubview(launchAtLoginRow())
 
         window?.layoutIfNeeded()
     }
@@ -281,10 +291,19 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         return row
     }
 
+    /// A section title — the only bold text in the window, so "General",
+    /// "Accounts", and "Advanced" read as the three groupings and nothing inside
+    /// them competes for that weight.
     private func header(_ text: String) -> NSTextField {
         let label = NSTextField(labelWithString: text)
         label.font = .boldSystemFont(ofSize: 13)
         return label
+    }
+
+    /// A field's name, sitting above its control within a section — lighter than
+    /// a section header, since it isn't one.
+    private func caption(_ text: String) -> NSTextField {
+        NSTextField(labelWithString: text)
     }
 
     private func dimmed(_ text: String) -> NSTextField {
@@ -292,6 +311,17 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         label.textColor = .secondaryLabelColor
         label.lineBreakMode = .byTruncatingMiddle
         return label
+    }
+
+    /// A full-width rule between sections. Constrained explicitly: the stack
+    /// itself sizes to its widest arranged subview rather than to the window, so
+    /// a stock `NSBox` separator — which has no intrinsic width — would collapse
+    /// to nothing without one.
+    private func separator() -> NSView {
+        let box = NSBox()
+        box.boxType = .separator
+        box.widthAnchor.constraint(equalToConstant: 568).isActive = true
+        return box
     }
 
     private func abbreviate(_ url: URL) -> String {

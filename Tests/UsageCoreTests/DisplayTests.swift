@@ -91,6 +91,22 @@ func runDisplayTests(_ t: Harness) {
         t.checkEqual(vm.accounts[0].note, nil, "healthy + tap installed: no note")
     }
 
+    // MARK: Overshoot — the server reports past 100; the display does not
+
+    do {
+        let vm = render(
+            accounts: [state("sam", five: window(121, resetsIn: 5_100),   // 1h 25m
+                             seven: window(62, resetsIn: 158_400))],
+            settings: settings, now: now
+        )
+        t.checkEqual(vm.menuBar[2], StyledText("sam 100%", .critical), "menu bar: overshoot clamps to 100%")
+        let w = vm.accounts[0].windows
+        t.checkEqual(w[0].percentText, "100%", "dropdown: 121% displays as 100%")
+        t.checkEqual(w[0].bar, "▓▓▓▓▓▓▓▓▓▓", "overshoot bar stays full, never wider")
+        t.checkEqual(w[0].tone, .critical, "overshoot is still critical")
+        t.checkEqual(w[1].percentText, "62%", "the other window is untouched")
+    }
+
     // MARK: Snapshot present but tap gone: data would be frozen — still noted
 
     t.checkEqual(

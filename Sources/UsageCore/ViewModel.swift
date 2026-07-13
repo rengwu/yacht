@@ -156,8 +156,13 @@ private func absenceNote(_ status: TapStatus) -> String {
 // MARK: - Formatting
 
 enum Format {
+    /// Clamped at 100 to match what Claude Code's own `/usage` shows. The server
+    /// reports the raw overshoot — enforcement is at request admission, so a
+    /// request let through at 95% can run long and land the window at 121% — but
+    /// a figure above 100 reads as a rendering bug, and "maxed out" is the whole
+    /// of what it means. The snapshot keeps the true number; only the display rounds it off.
     static func percent(_ value: Double) -> String {
-        "\(Int(value.rounded()))%"
+        "\(Int(min(100, value).rounded()))%"
     }
 
     static func bar(_ percentage: Double, width: Int = 10) -> String {

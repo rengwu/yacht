@@ -14,6 +14,10 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
 
     private unowned let app: AppDelegate
     private let stack = NSStackView()
+    /// The icon-preset popover, held onto so picking a preset can close it —
+    /// unlike the info popovers, a pick is a completed action, not something to
+    /// leave open until the next click elsewhere.
+    private var iconPresetsPopover: NSPopover?
 
     init(app: AppDelegate) {
         self.app = app
@@ -49,7 +53,6 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         stack.addArrangedSubview(showMenuBarIconRow())
         stack.addArrangedSubview(caption("Menu bar icon"))
         stack.addArrangedSubview(menuBarIconRow())
-        stack.addArrangedSubview(menuBarIconPresetsRow())
         stack.addArrangedSubview(caption("Warning threshold"))
         stack.addArrangedSubview(thresholdRow())
 
@@ -209,10 +212,12 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
     }
 
     /// A mix of plain glyphs (native-feeling, monochrome, blend into the menu
-    /// bar) and emoji (render in full color, since this is text, not a template
-    /// image) — a starting point to click through rather than a fixed set: the
-    /// field beside it takes anything.
-    private static let menuBarIconPresets = ["◐", "◑", "◒", "●", "○", "✦", "⚡️", "📊", "🔋", "🤖"]
+    /// bar) and emoji picked to fit a rate-limit tracker specifically —
+    /// ⏳ for a ticking window, 🧠 for the model, 🪫 for what hitting the
+    /// limit feels like, 🎛️/🧮 for a dashboard/tally — over the more generic
+    /// ⚡️/📊/🤖 this used to offer. A starting point to click through rather
+    /// than a fixed set: the field beside it takes anything.
+    private static let menuBarIconPresets = ["◐", "◑", "●", "✦", "⏳", "🧠", "🪫", "🎛️", "🧮", "👾"]
 
     private func menuBarIconRow() -> NSView {
         let field = NSTextField(string: app.config.menuBarIcon)
@@ -222,21 +227,56 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         field.font = .systemFont(ofSize: 14)
         field.widthAnchor.constraint(equalToConstant: 36).isActive = true
         let reset = NSButton(title: "Reset", target: self, action: #selector(resetMenuBarIcon))
-        return row([field, reset])
+        let presets = NSButton(
+            title: "Presets…", target: self, action: #selector(showMenuBarIconPresets(_:))
+        )
+        return row([field, reset, presets])
     }
 
-    /// Each button's identifier carries the glyph itself, the same way an
-    /// account row's controls carry its config directory — the value the click
-    /// means to set, not a position to look it up from.
-    private func menuBarIconPresetsRow() -> NSView {
-        let buttons = Self.menuBarIconPresets.map { icon -> NSButton in
+    /// A grid of preset buttons in a popover, rather than a permanent row —
+    /// ten buttons sitting in the window at all times outweighs how often
+    /// they're actually used, which is once, maybe twice. Each button's
+    /// identifier carries the glyph itself, the same way an account row's
+    /// controls carry its config directory — the value the click means to
+    /// set, not a position to look it up from.
+    @objc private func showMenuBarIconPresets(_ sender: NSButton) {
+        func presetButton(_ icon: String) -> NSButton {
             let button = NSButton(title: icon, target: self, action: #selector(pickMenuBarIcon(_:)))
             button.identifier = NSUserInterfaceItemIdentifier(icon)
-            button.font = .systemFont(ofSize: 14)
+            button.font = .systemFont(ofSize: 16)
             button.widthAnchor.constraint(equalToConstant: 28).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 28).isActive = true
             return button
         }
-        return row(buttons)
+
+        // Two rows of five reads better in a compact popover than one long strip.
+        let rows = stride(from: 0, to: Self.menuBarIconPresets.count, by: 5).map { start -> NSStackView in
+            let end = min(start + 5, Self.menuBarIconPresets.count)
+            let buttonRow = NSStackView(views: Self.menuBarIconPresets[start..<end].map(presetButton))
+            buttonRow.spacing = 4
+            return buttonRow
+        }
+        let grid = NSStackView(views: rows)
+        grid.orientation = .vertical
+        grid.spacing = 4
+        grid.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = NSView()
+        container.addSubview(grid)
+        NSLayoutConstraint.activate([
+            grid.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
+            grid.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -10),
+            grid.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 10),
+            grid.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
+        ])
+
+        let controller = NSViewController()
+        controller.view = container
+        let popover = NSPopover()
+        popover.contentViewController = controller
+        popover.behavior = .transient
+        iconPresetsPopover = popover
+        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
     }
 
     /// Mirrors `syncMenuBarMaxAccountsControls`: pushes the current value to the
@@ -402,6 +442,8 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         guard let icon = sender.identifier?.rawValue else { return }
         app.update { $0.menuBarIcon = icon }
         syncMenuBarIconField()
+        iconPresetsPopover?.close()
+        iconPresetsPopover = nil
     }
 
     @objc private func resetMenuBarIcon() {

@@ -147,6 +147,10 @@ func runDisplayTests(_ t: Harness) {
             "an unknown token and an unclosed brace stand as literal text — never an error"
         )
         t.checkEqual(row("no tokens at all"), "no tokens at all", "a template may have no tokens")
+        t.checkEqual(
+            row("{pct} / {pct_7d}"), " 50% / —",
+            "{pct_7d} has no second window to read in a per-window row, so it is always \"—\" here"
+        )
     }
 
     // MARK: Menu bar customization — icon, per-account template, separator, cap
@@ -202,6 +206,22 @@ func runDisplayTests(_ t: Harness) {
             menuBarText(noData, accounts: [state("sam", noSnapshot: true)]).last,
             "sam [{pct} pending]",
             "no-data template: only {name} substitutes, everything else stands as literal"
+        )
+
+        // {pct_7d}: the week's percentage, read independently of the 5-hour one
+        // that drives the rest of the row.
+        let withWeekly = AppSettings(menuBarTemplate: "{name} {pct}/{pct_7d}")
+        t.checkEqual(
+            menuBarText(withWeekly, accounts: [
+                state("sam", five: window(24, resetsIn: 9_000), seven: window(41, resetsIn: 104_400)),
+            ]).last,
+            "sam 24%/41%",
+            "{pct_7d} reads the 7-day window on its own, alongside the 5-hour {pct}"
+        )
+        t.checkEqual(
+            menuBarText(withWeekly, accounts: [state("sam", five: window(24, resetsIn: 9_000))]).last,
+            "sam 24%/—",
+            "no 7-day window: {pct_7d} renders \"—\", same as any other genuinely absent figure"
         )
 
         // Custom separator, including a bare space — trimming it would silently

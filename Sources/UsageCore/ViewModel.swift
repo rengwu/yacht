@@ -112,10 +112,12 @@ private func menuBarSegment(
         return StyledText(Format.menuBarText(settings.menuBarNoDataTemplate, name: label), .dimmed)
     }
     let p = effectivePercentage(five, now: now)
+    let weekly = state.snapshot?.sevenDay.map { effectivePercentage($0, now: now) }
     return StyledText(
         Format.row(
             settings.menuBarTemplate, name: label, percentage: p,
-            resetsAt: five.resetsAt, now: now, calendar: calendar, padPercent: false
+            resetsAt: five.resetsAt, now: now, calendar: calendar, padPercent: false,
+            secondaryPercentage: weekly
         ),
         tone(p, settings)
     )
@@ -206,15 +208,22 @@ enum Format {
     /// token it does not know — standing as literal text. `padPercent` is off for
     /// the menu bar: the column alignment exists for a vertical list of rows, and
     /// one inline status-item segment isn't one.
+    ///
+    /// `secondaryPercentage` backs `{pct_7d}` — the menu bar's own row is built
+    /// from the 5-hour window alone, so a 7-day figure has nowhere else to come
+    /// from. `nil` (no such window, or no caller that has one — the dropdown's
+    /// row calls never pass one) renders as "—", not a blank or an error.
     static func row(
         _ template: String, name: String, percentage: Double,
-        resetsAt: Date, now: Date, calendar: Calendar, padPercent: Bool = true
+        resetsAt: Date, now: Date, calendar: Calendar, padPercent: Bool = true,
+        secondaryPercentage: Double? = nil
     ) -> String {
         var out = template
         for (token, value) in [
             ("{name}", name),
             ("{bar}", bar(percentage)),
             ("{pct}", padPercent ? column(percent(percentage)) : percent(percentage)),
+            ("{pct_7d}", secondaryPercentage.map { padPercent ? column(percent($0)) : percent($0) } ?? "—"),
             ("{reset_at}", clock(resetsAt, now: now, calendar: calendar)),
             ("{reset_in}", countdown(from: now, to: resetsAt)),
         ] {

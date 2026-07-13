@@ -70,6 +70,8 @@ public struct AppSettings: Equatable {
     /// tokens as `rowTemplate` (`{bar}`/`{reset_at}`/`{reset_in}` all work, though
     /// the bar is an odd fit for one inline line). `{pct}` is not column-padded
     /// here — that alignment exists for a vertical list, and this isn't one.
+    /// `{pct_7d}` adds the 7-day window's percentage alongside the 5-hour one —
+    /// "—" if that window has no data of its own.
     public var menuBarTemplate: String
 
     public static let defaultMenuBarTemplate = "{name} {pct}"

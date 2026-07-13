@@ -82,7 +82,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         stack.addArrangedSubview(header("Advanced"))
 
         stack.addArrangedSubview(captionRow(
-            "Menu bar text", variables: "{name} {bar} {pct} {reset_at} {reset_in}"
+            "Menu bar text", variables: "{name} {bar} {pct} {pct_7d} {reset_at} {reset_in}"
         ))
         stack.addArrangedSubview(menuBarTemplateRow())
 

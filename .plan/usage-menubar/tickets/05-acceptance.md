@@ -1,6 +1,8 @@
 ---
 type: task
 blocked_by: [01, 03, 04]
+claimed_by: claude-code-session-2026-07-13-opus
+claimed_at: 2026-07-13T00:00:00Z
 ---
 
 # Acceptance: watch the real product with you

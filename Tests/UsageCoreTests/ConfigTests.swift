@@ -56,6 +56,47 @@ func runConfigTests(_ t: Harness) {
         t.checkEqual(ConfigStore.load(from: garbage), AppConfig(), "garbage config → defaults")
     } catch { t.check(false, "garbage fixture setup threw \(error)") }
 
+    // MARK: Account mutations address an account by directory, not by position
+
+    do {
+        let john = Account(label: "john", configDir: URL(fileURLWithPath: "/Users/x/.claude"))
+        let sam = Account(label: "sam", configDir: URL(fileURLWithPath: "/Users/x/.claude2"))
+
+        // The sequence that corrupted a real config: Remove is clicked while the
+        // account's label field is still being edited, and AppKit commits the edit
+        // *after* the removal. Positionally, "rename account 0" then lands on sam.
+        var config = AppConfig(accounts: [john, sam])
+        config.remove(configDir: john.configDir)
+        config.relabel(configDir: john.configDir, to: "john")
+        t.checkEqual(
+            config.accounts, [sam],
+            "an edit committed after its account was removed renames nobody"
+        )
+
+        config = AppConfig(accounts: [john, sam])
+        config.relabel(configDir: sam.configDir, to: "sammy")
+        t.checkEqual(
+            config.accounts.map(\.label), ["john", "sammy"],
+            "a live rename still finds its account"
+        )
+        t.checkEqual(
+            config.accounts[1].configDir, sam.configDir,
+            "…and renaming does not move the directory it is keyed on"
+        )
+
+        config = AppConfig(accounts: [john, sam])
+        config.remove(configDir: URL(fileURLWithPath: "/Users/x/.claude2/"))  // trailing slash
+        t.checkEqual(config.accounts, [john], "paths are compared standardized, not textually")
+
+        config.remove(configDir: URL(fileURLWithPath: "/Users/x/.nothing"))
+        t.checkEqual(config.accounts, [john], "removing an unregistered directory removes nothing")
+
+        t.checkEqual(
+            AppConfig(accounts: [john, sam]).account(configDir: sam.configDir), sam,
+            "lookup by directory"
+        )
+    }
+
     // MARK: Discovery — .claude* directories only
 
     do {

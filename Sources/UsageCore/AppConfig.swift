@@ -35,6 +35,35 @@ public struct AppConfig: Equatable, Codable {
     public var settings: AppSettings {
         AppSettings(warnThreshold: warnThreshold, rowTemplate: rowTemplate)
     }
+
+    // Account mutations address an account by its config directory — its identity —
+    // never by position. A UI that holds an index holds a claim that the list has
+    // not changed since, and it has: AppKit commits a pending field edit *after*
+    // the button action that removed the row, so an index-addressed rename lands
+    // on whichever account slid into that slot. Addressed by directory, the same
+    // stale edit finds nothing and is dropped, which is what it deserves.
+
+    public mutating func remove(configDir: URL) {
+        accounts.removeAll { $0.configDir.isSameDirectory(as: configDir) }
+    }
+
+    /// Renames the account at `configDir`. An account that is no longer registered
+    /// is not an error — the rename simply has no target.
+    public mutating func relabel(configDir: URL, to label: String) {
+        guard let i = accounts.firstIndex(where: { $0.configDir.isSameDirectory(as: configDir) })
+        else { return }
+        accounts[i] = Account(label: label, configDir: accounts[i].configDir)
+    }
+
+    public func account(configDir: URL) -> Account? {
+        accounts.first { $0.configDir.isSameDirectory(as: configDir) }
+    }
+}
+
+extension URL {
+    func isSameDirectory(as other: URL) -> Bool {
+        standardizedFileURL.path == other.standardizedFileURL.path
+    }
 }
 
 extension Account: Codable {

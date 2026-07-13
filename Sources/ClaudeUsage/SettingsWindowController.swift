@@ -40,8 +40,8 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         if app.config.accounts.isEmpty {
             stack.addArrangedSubview(dimmed("None registered yet."))
         }
-        for (index, account) in app.config.accounts.enumerated() {
-            stack.addArrangedSubview(accountRow(index: index, account: account))
+        for account in app.config.accounts {
+            stack.addArrangedSubview(accountRow(account: account))
         }
 
         let discovered = discoveredDirs()
@@ -82,9 +82,11 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
 
     // MARK: - Rows
 
-    private func accountRow(index: Int, account: Account) -> NSView {
+    /// Every control in the row carries the account's config directory — its
+    /// identity — not its index. See the note on `AppConfig.remove`.
+    private func accountRow(account: Account) -> NSView {
         let label = NSTextField(string: account.label)
-        label.tag = index
+        label.identifier = NSUserInterfaceItemIdentifier("label:" + account.configDir.path)
         label.delegate = self
         label.widthAnchor.constraint(equalToConstant: 110).isActive = true
 
@@ -108,8 +110,8 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         }
 
         let remove = NSButton(title: "Remove", target: self, action: #selector(removeAccount(_:)))
-        remove.tag = index
-        installButton?.tag = index
+        remove.identifier = NSUserInterfaceItemIdentifier(account.configDir.path)
+        installButton?.identifier = NSUserInterfaceItemIdentifier(account.configDir.path)
 
         var views: [NSView] = [label, path, statusText]
         if let installButton { views.append(installButton) }
@@ -187,12 +189,15 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
     }
 
     @objc private func removeAccount(_ sender: NSButton) {
-        app.update { $0.accounts.remove(at: sender.tag) }
+        guard let path = sender.identifier?.rawValue else { return }
+        app.update { $0.remove(configDir: URL(fileURLWithPath: path)) }
         reload()
     }
 
     @objc private func installTap(_ sender: NSButton) {
-        let account = app.config.accounts[sender.tag]
+        guard let path = sender.identifier?.rawValue,
+              let account = app.config.account(configDir: URL(fileURLWithPath: path))
+        else { return }
         do {
             try app.installTap(for: account)
         } catch {
@@ -244,13 +249,16 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         reload()
     }
 
-    /// Both editable fields land here, told apart by identifier. Text fields for
-    /// account labels still carry the account index in their tag.
+    /// Both editable fields land here, told apart by identifier. This notification
+    /// can arrive *after* the click that removed the very account being edited —
+    /// hence the rename by config directory, which finds nothing and does nothing
+    /// when that account is gone.
     func controlTextDidEndEditing(_ notification: Notification) {
-        guard let field = notification.object as? NSTextField else { return }
+        guard let field = notification.object as? NSTextField,
+              let id = field.identifier?.rawValue else { return }
+        let text = field.stringValue.trimmingCharacters(in: .whitespaces)
 
-        if field.identifier?.rawValue == "row-template" {
-            let text = field.stringValue.trimmingCharacters(in: .whitespaces)
+        if id == "row-template" {
             // An emptied field means "give me the default back", not "render an
             // empty row" — a blank row would leave the account with no numbers at
             // all and no way to tell why.
@@ -259,12 +267,9 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
             return
         }
 
-        guard field.tag < app.config.accounts.count else { return }
-        let text = field.stringValue.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return }
-        app.update { $0.accounts[field.tag] = Account(
-            label: text, configDir: $0.accounts[field.tag].configDir
-        ) }
+        guard id.hasPrefix("label:"), !text.isEmpty else { return }
+        let dir = URL(fileURLWithPath: String(id.dropFirst("label:".count)))
+        app.update { $0.relabel(configDir: dir, to: text) }
     }
 
     // MARK: - Small helpers

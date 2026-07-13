@@ -1,6 +1,8 @@
 ---
 type: task
 blocked_by: [01, 02]
+claimed_by: claude-code-session-2026-07-13-fable
+claimed_at: 2026-07-13T05:45:41Z
 ---
 
 # Build the UI: menu bar projection + settings/registration window

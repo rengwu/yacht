@@ -25,8 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMainMenu()
         refresh()
-        // The snapshots only change while Claude Code runs, but countdowns and
-        // staleness are relative to now, so redraw on a timer regardless.
+        // The snapshots only change while Claude Code runs, but countdowns and the
+        // reset boundary are relative to now, so redraw on a timer regardless.
         let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             self?.refresh()
         }
@@ -99,14 +99,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for account in vm.accounts {
             menu.addItem(Style.menuLabel(account.label))
             for window in account.windows {
-                let name = window.name.padding(toLength: 8, withPad: " ", startingAt: 0)
                 menu.addItem(Style.menuLabel(
-                    "\(name) \(window.bar)  \(window.percentText)",
-                    tone: window.tone, monospace: true, indent: true
+                    window.text, tone: window.tone, monospace: true, indent: true
                 ))
-                menu.addItem(Style.menuLabel(window.detail, tone: .dimmed, indent: true))
             }
-            menu.addItem(Style.menuLabel(account.freshness, tone: .dimmed, indent: true))
             if let note = account.note {
                 menu.addItem(Style.menuLabel(note, tone: .warn, indent: true))
             }

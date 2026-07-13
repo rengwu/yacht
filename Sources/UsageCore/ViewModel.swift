@@ -20,32 +20,26 @@ public struct StyledText: Equatable {
     }
 }
 
+/// One fully-composed row, e.g. `5h  ▓▓░░░░░░░░   24%  ·  reset 10:30am`. The
+/// template decided its shape; the UI only paints it in the tone.
 public struct WindowView: Equatable {
-    public let name: String         // "5-hour" | "7-day"
-    public let bar: String          // e.g. "▓▓░░░░░░░░"
-    public let percentText: String  // e.g. "24%"
+    public let text: String
     public let tone: Tone
-    public let detail: String       // "resets in 2h 30m" | reset-passed wording
 
-    public init(name: String, bar: String, percentText: String, tone: Tone, detail: String) {
-        self.name = name
-        self.bar = bar
-        self.percentText = percentText
+    public init(text: String, tone: Tone) {
+        self.text = text
         self.tone = tone
-        self.detail = detail
     }
 }
 
 public struct AccountView: Equatable {
     public let label: String
     public let windows: [WindowView]  // 0–2, in 5-hour / 7-day order
-    public let freshness: String      // "updated 3m ago" | "never reported"
     public let note: String?          // why data is absent/frozen, when it is
 
-    public init(label: String, windows: [WindowView], freshness: String, note: String?) {
+    public init(label: String, windows: [WindowView], note: String?) {
         self.label = label
         self.windows = windows
-        self.freshness = freshness
         self.note = note
     }
 }
@@ -67,7 +61,11 @@ public struct ViewModel: Equatable {
 
 // MARK: - Render
 
-public func render(accounts: [AccountState], settings: AppSettings, now: Date) -> ViewModel {
+/// The calendar carries the time zone and locale a wall-clock reset time is read
+/// in — injected for the same reason `now` is, so the seam stays pure.
+public func render(
+    accounts: [AccountState], settings: AppSettings, now: Date, calendar: Calendar = .current
+) -> ViewModel {
     var segments = [StyledText("◐", .normal)]
     for (i, state) in accounts.enumerated() {
         segments.append(StyledText(i == 0 ? " " : " · ", .dimmed))
@@ -75,7 +73,9 @@ public func render(accounts: [AccountState], settings: AppSettings, now: Date) -
     }
     return ViewModel(
         menuBar: segments,
-        accounts: accounts.map { accountView($0, settings: settings, now: now) },
+        accounts: accounts.map {
+            accountView($0, settings: settings, now: now, calendar: calendar)
+        },
         emptyState: accounts.isEmpty
             ? "No accounts registered — open Settings to add one" : nil
     )
@@ -90,42 +90,57 @@ private func menuBarSegment(_ state: AccountState, settings: AppSettings, now: D
     return StyledText("\(label) \(Format.percent(p))", tone(p, settings))
 }
 
-private func accountView(_ state: AccountState, settings: AppSettings, now: Date) -> AccountView {
+/// No "updated Nm ago" line, deliberately. A figure that renders at all belongs
+/// to the window that is live *now* — `resets_at` travels inside the snapshot, so
+/// anything past its own reset renders empty below — and usage only accrues while
+/// a session runs, which is exactly when the tap rewrites the snapshot. An age
+/// therefore casts doubt on a number that is still exactly true, and the one case
+/// where it *is* a lower bound (the account spent tokens somewhere the tap cannot
+/// see — the web app, another machine, a broken tap) is invisible to a clock. What
+/// can be known about the pipeline is stated instead, as a note.
+private func accountView(
+    _ state: AccountState, settings: AppSettings, now: Date, calendar: Calendar
+) -> AccountView {
     guard let snapshot = state.snapshot else {
         return AccountView(
-            label: state.account.label,
-            windows: [],
-            freshness: "never reported",
-            note: absenceNote(state.tapStatus)
+            label: state.account.label, windows: [], note: absenceNote(state.tapStatus)
         )
     }
     var windows: [WindowView] = []
     if let five = snapshot.fiveHour {
-        windows.append(windowView("5-hour", five, settings: settings, now: now))
+        windows.append(windowView("5h", five, settings: settings, now: now, calendar: calendar))
     }
     if let seven = snapshot.sevenDay {
-        windows.append(windowView("7-day", seven, settings: settings, now: now))
+        windows.append(windowView("7d", seven, settings: settings, now: now, calendar: calendar))
     }
     return AccountView(
         label: state.account.label,
         windows: windows,
-        freshness: "updated \(Format.ago(since: snapshot.updatedAt, now: now))",
         note: state.tapStatus == .installed ? nil : absenceNote(state.tapStatus)
     )
 }
 
-private func windowView(_ name: String, _ window: LimitWindow, settings: AppSettings, now: Date) -> WindowView {
-    let p = effectivePercentage(window, now: now)
-    let detail = now >= window.resetsAt
-        // Correct by inference, not observation — say so plainly.
-        ? "reset passed — empty until a session confirms"
-        : "resets in \(Format.countdown(from: now, to: window.resetsAt))"
+private func windowView(
+    _ name: String, _ window: LimitWindow, settings: AppSettings, now: Date, calendar: Calendar
+) -> WindowView {
+    // Past the reset there is no reset time to render and no session has confirmed
+    // the window is empty, so this row states the inference instead of obeying the
+    // template: the template describes a live window, and this wording is a claim
+    // about what is known, not a preference.
+    guard now < window.resetsAt else {
+        return WindowView(
+            text: "\(name)  \(Format.bar(0))  \(Format.column(Format.percent(0)))"
+                + "  ·  reset passed — empty until a session confirms",
+            tone: .normal
+        )
+    }
+    let p = window.usedPercentage
     return WindowView(
-        name: name,
-        bar: Format.bar(p),
-        percentText: Format.percent(p),
-        tone: tone(p, settings),
-        detail: detail
+        text: Format.row(
+            settings.rowTemplate, name: name, percentage: p,
+            resetsAt: window.resetsAt, now: now, calendar: calendar
+        ),
+        tone: tone(p, settings)
     )
 }
 
@@ -156,6 +171,52 @@ private func absenceNote(_ status: TapStatus) -> String {
 // MARK: - Formatting
 
 enum Format {
+    /// Substitutes the known tokens and leaves everything else — including any
+    /// token it does not know — standing as literal text.
+    static func row(
+        _ template: String, name: String, percentage: Double,
+        resetsAt: Date, now: Date, calendar: Calendar
+    ) -> String {
+        var out = template
+        for (token, value) in [
+            ("{name}", name),
+            ("{bar}", bar(percentage)),
+            ("{pct}", column(percent(percentage))),
+            ("{reset_at}", clock(resetsAt, now: now, calendar: calendar)),
+            ("{reset_in}", countdown(from: now, to: resetsAt)),
+        ] {
+            out = out.replacingOccurrences(of: token, with: value)
+        }
+        return out
+    }
+
+    /// Right-aligned in a 4-wide column ("100%", " 62%", "  0%") so that in the
+    /// menu's monospaced rows the percentages form a column instead of drifting
+    /// with the width of the number.
+    static func column(_ text: String, width: Int = 4) -> String {
+        String(repeating: " ", count: max(0, width - text.count)) + text
+    }
+
+    /// The reset as a wall clock — "8:00pm", or "Sat 1:00pm" when it is not today,
+    /// because a bare time on a 7-day window would name a moment days away as if
+    /// it were this evening. 12- or 24-hour per the locale; the space macOS puts
+    /// before AM/PM is squeezed out to keep the row narrow.
+    static func clock(_ date: Date, now: Date, calendar: Calendar) -> String {
+        func formatter(_ template: String) -> DateFormatter {
+            let f = DateFormatter()
+            f.calendar = calendar
+            f.locale = calendar.locale ?? .current
+            f.timeZone = calendar.timeZone
+            f.setLocalizedDateFormatFromTemplate(template)
+            return f
+        }
+        let time = formatter("jmm").string(from: date)
+            .filter { !$0.isWhitespace }  // also catches the narrow no-break space
+            .lowercased()
+        guard !calendar.isDate(date, inSameDayAs: now) else { return time }
+        return "\(formatter("E").string(from: date)) \(time)"
+    }
+
     /// Clamped at 100 to match what Claude Code's own `/usage` shows. The server
     /// reports the raw overshoot — enforcement is at request admission, so a
     /// request let through at 95% can run long and land the window at 121% — but
@@ -179,16 +240,5 @@ enum Format {
         if days > 0 { return "\(days)d \(hours)h" }
         if hours > 0 { return "\(hours)h \(minutes)m" }
         return "\(max(1, minutes))m"
-    }
-
-    static func ago(since date: Date, now: Date) -> String {
-        let total = Int(now.timeIntervalSince(date))
-        guard total >= 60 else { return "just now" }
-        let minutes = total / 60
-        let hours = minutes / 60
-        let days = hours / 24
-        if days > 0 { return "\(days)d ago" }
-        if hours > 0 { return "\(hours)h ago" }
-        return "\(minutes)m ago"
     }
 }

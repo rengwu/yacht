@@ -48,11 +48,26 @@ public struct AppSettings: Equatable {
     /// At or above this percentage a figure renders as `.warn`.
     public var warnThreshold: Double
 
+    /// The dropdown's window row, as a template over these tokens:
+    ///
+    ///     {name}      5h | 7d
+    ///     {bar}       ▓▓▓▓▓▓░░░░
+    ///     {pct}       100% (right-aligned to 4, so the columns line up)
+    ///     {reset_at}  8:00pm — with a weekday when it is not today
+    ///     {reset_in}  1h 24m
+    ///
+    /// Anything else in the string is literal, unrecognised braces included: a
+    /// typo'd token shows up as itself rather than as an error or an empty gap.
+    public var rowTemplate: String
+
+    public static let defaultRowTemplate = "{name}  {bar}  {pct}  ·  reset {reset_at}"
+
     /// At or above this a figure renders as `.critical`. Derived, not settable.
     public var criticalThreshold: Double { warnThreshold + (100 - warnThreshold) / 2 }
 
-    public init(warnThreshold: Double = 75) {
+    public init(warnThreshold: Double = 75, rowTemplate: String = AppSettings.defaultRowTemplate) {
         self.warnThreshold = warnThreshold
+        self.rowTemplate = rowTemplate
     }
 }
 

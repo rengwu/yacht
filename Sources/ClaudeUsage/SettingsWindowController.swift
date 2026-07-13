@@ -60,6 +60,12 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         stack.addArrangedSubview(header("Warning threshold"))
         stack.addArrangedSubview(thresholdRow())
 
+        stack.addArrangedSubview(header("Dropdown row"))
+        stack.addArrangedSubview(rowTemplateRow())
+        stack.addArrangedSubview(dimmed(
+            "{name} {bar} {pct} {reset_at} (8:00pm) {reset_in} (1h 24m) — anything else is literal."
+        ))
+
         stack.addArrangedSubview(header("Startup"))
         stack.addArrangedSubview(launchAtLoginRow())
 
@@ -126,6 +132,16 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         let label = dimmed(thresholdText())
         label.identifier = NSUserInterfaceItemIdentifier("threshold-label")
         return row([slider, label])
+    }
+
+    private func rowTemplateRow() -> NSView {
+        let field = NSTextField(string: app.config.rowTemplate)
+        field.identifier = NSUserInterfaceItemIdentifier("row-template")
+        field.delegate = self
+        field.font = .monospacedSystemFont(ofSize: 12, weight: .regular)  // as the row is
+        field.widthAnchor.constraint(equalToConstant: 380).isActive = true
+        let reset = NSButton(title: "Reset", target: self, action: #selector(resetRowTemplate))
+        return row([field, reset])
     }
 
     /// The checkbox is set from the system's *live* state, not a stored flag —
@@ -223,10 +239,27 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         window?.makeFirstResponder(nil)
     }
 
-    /// Relabelling: text fields carry the account index in their tag.
+    @objc private func resetRowTemplate() {
+        app.update { $0.rowTemplate = AppSettings.defaultRowTemplate }
+        reload()
+    }
+
+    /// Both editable fields land here, told apart by identifier. Text fields for
+    /// account labels still carry the account index in their tag.
     func controlTextDidEndEditing(_ notification: Notification) {
-        guard let field = notification.object as? NSTextField,
-              field.tag < app.config.accounts.count else { return }
+        guard let field = notification.object as? NSTextField else { return }
+
+        if field.identifier?.rawValue == "row-template" {
+            let text = field.stringValue.trimmingCharacters(in: .whitespaces)
+            // An emptied field means "give me the default back", not "render an
+            // empty row" — a blank row would leave the account with no numbers at
+            // all and no way to tell why.
+            app.update { $0.rowTemplate = text.isEmpty ? AppSettings.defaultRowTemplate : text }
+            field.stringValue = app.config.rowTemplate
+            return
+        }
+
+        guard field.tag < app.config.accounts.count else { return }
         let text = field.stringValue.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
         app.update { $0.accounts[field.tag] = Account(

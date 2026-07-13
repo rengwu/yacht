@@ -18,11 +18,33 @@ func runConfigTests(_ t: Harness) {
                 Account(label: "john", configDir: URL(fileURLWithPath: "/Users/x/.claude")),
                 Account(label: "jane", configDir: URL(fileURLWithPath: "/Users/x/.claude2")),
             ],
-            warnThreshold: 80
+            warnThreshold: 80,
+            rowTemplate: "{name} {pct}"
         )
         try ConfigStore.save(config, to: url)
         t.checkEqual(ConfigStore.load(from: url), config, "config round-trips")
     } catch { t.check(false, "config save threw \(error)") }
+
+    // MARK: A config from an older build — missing keys must not cost the user
+    // their accounts. A strict decode would throw, and `load` turns a throw into
+    // "no accounts registered", silently wiping the setup.
+
+    do {
+        let url = root.appendingPathComponent("old.json")
+        try Data("""
+        {"accounts": [{"label": "john", "configDir": "/Users/x/.claude"}], "warnThreshold": 80}
+        """.utf8).write(to: url)
+        let loaded = ConfigStore.load(from: url)
+        t.checkEqual(
+            loaded.accounts, [Account(label: "john", configDir: URL(fileURLWithPath: "/Users/x/.claude"))],
+            "config predating rowTemplate: accounts survive"
+        )
+        t.checkEqual(loaded.warnThreshold, 80, "…and the threshold it did set survives")
+        t.checkEqual(
+            loaded.rowTemplate, AppSettings.defaultRowTemplate,
+            "…and only the missing key falls back to its default"
+        )
+    } catch { t.check(false, "old-config fixture setup threw \(error)") }
 
     t.checkEqual(
         ConfigStore.load(from: root.appendingPathComponent("missing.json")),

@@ -1,16 +1,40 @@
 import Foundation
 
-/// What the app persists: the registered accounts and the one threshold.
+/// What the app persists: the registered accounts, the one threshold, the row
+/// template.
 public struct AppConfig: Equatable, Codable {
     public var accounts: [Account]
     public var warnThreshold: Double
+    public var rowTemplate: String
 
-    public init(accounts: [Account] = [], warnThreshold: Double = 75) {
+    public init(
+        accounts: [Account] = [],
+        warnThreshold: Double = 75,
+        rowTemplate: String = AppSettings.defaultRowTemplate
+    ) {
         self.accounts = accounts
         self.warnThreshold = warnThreshold
+        self.rowTemplate = rowTemplate
     }
 
-    public var settings: AppSettings { AppSettings(warnThreshold: warnThreshold) }
+    /// Every field is optional on the way in, falling back to its default. A
+    /// config written by an older build is missing the keys added since, and a
+    /// strict decode would throw — which `load` turns into "no accounts", quietly
+    /// unregistering everything the user set up. A settings file must only ever
+    /// lose the setting it is actually missing.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            accounts: try c.decodeIfPresent([Account].self, forKey: .accounts) ?? [],
+            warnThreshold: try c.decodeIfPresent(Double.self, forKey: .warnThreshold) ?? 75,
+            rowTemplate: try c.decodeIfPresent(String.self, forKey: .rowTemplate)
+                ?? AppSettings.defaultRowTemplate
+        )
+    }
+
+    public var settings: AppSettings {
+        AppSettings(warnThreshold: warnThreshold, rowTemplate: rowTemplate)
+    }
 }
 
 extension Account: Codable {

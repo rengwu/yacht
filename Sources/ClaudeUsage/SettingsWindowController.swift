@@ -59,6 +59,9 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         stack.addArrangedSubview(header("Warning threshold"))
         stack.addArrangedSubview(thresholdRow())
 
+        stack.addArrangedSubview(header("Startup"))
+        stack.addArrangedSubview(launchAtLoginRow())
+
         window?.layoutIfNeeded()
     }
 
@@ -124,6 +127,18 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         return row([slider, label])
     }
 
+    /// The checkbox is set from the system's *live* state, not a stored flag —
+    /// so if registration ever silently fails, the box reflects the failure
+    /// rather than a hopeful intention.
+    private func launchAtLoginRow() -> NSView {
+        let check = NSButton(
+            checkboxWithTitle: "Launch at login",
+            target: self, action: #selector(toggleLaunchAtLogin(_:))
+        )
+        check.state = LaunchAtLogin.isEnabled ? .on : .off
+        return row([check])
+    }
+
     private func thresholdText() -> String {
         "orange at \(Int(app.config.warnThreshold))%, red at \(Int(app.config.settings.criticalThreshold))%"
     }
@@ -172,6 +187,20 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
             alert.runModal()
         }
         reload()
+    }
+
+    @objc private func toggleLaunchAtLogin(_ sender: NSButton) {
+        do {
+            try LaunchAtLogin.setEnabled(sender.state == .on)
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Could not change the login item"
+            alert.informativeText = "\(error)"
+            alert.runModal()
+        }
+        // Snap the checkbox back to what the system actually holds now — whether
+        // the change took or not, the box tells the truth.
+        sender.state = LaunchAtLogin.isEnabled ? .on : .off
     }
 
     @objc private func thresholdChanged(_ sender: NSSlider) {

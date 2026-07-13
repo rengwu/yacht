@@ -149,6 +149,92 @@ func runDisplayTests(_ t: Harness) {
         t.checkEqual(row("no tokens at all"), "no tokens at all", "a template may have no tokens")
     }
 
+    // MARK: Menu bar customization — icon, per-account template, separator, cap
+
+    do {
+        func menuBarText(_ settings: AppSettings, accounts: [AccountState]) -> [String] {
+            render(accounts: accounts, settings: settings, now: now).menuBar.map(\.text)
+        }
+
+        // Icon checkbox, honored when there is something else to show.
+        let withIcon = AppSettings()
+        let withoutIcon = AppSettings(showMenuBarIcon: false)
+        let one = [state("john", five: window(24, resetsIn: 9_000))]
+        t.checkEqual(menuBarText(withIcon, accounts: one).first, "◐", "icon shown by default")
+        t.checkEqual(
+            menuBarText(withoutIcon, accounts: one).first, "john 24%",
+            "icon hidden: text starts the bar"
+        )
+
+        // The fallback: hiding the icon must never leave nothing to click.
+        t.checkEqual(
+            menuBarText(withoutIcon, accounts: []), ["◐"],
+            "icon hidden + zero accounts: forced back on, since there'd be nothing else"
+        )
+        let blank = AppSettings(showMenuBarIcon: false, menuBarTemplate: "", menuBarNoDataTemplate: "")
+        t.checkEqual(
+            menuBarText(blank, accounts: one), ["◐", " ", ""],
+            "icon hidden + a template that renders nothing: forced back on too"
+        )
+        // A second account with real text is enough to keep the icon off.
+        let mixed = AppSettings(showMenuBarIcon: false, menuBarTemplate: "")
+        t.checkEqual(
+            menuBarText(mixed, accounts: [
+                state("john", five: window(24, resetsIn: 9_000)), state("jane", noSnapshot: true),
+            ]).first,
+            "",
+            "…but even one account with visible text is enough to leave the icon off"
+        )
+
+        // Per-account template: the same token set as the dropdown row, minus the
+        // percent's column padding — this is one inline segment, not a list.
+        let templated = AppSettings(menuBarTemplate: "{name}:{pct}[{bar}]@{reset_at}/{reset_in}")
+        t.checkEqual(
+            menuBarText(templated, accounts: [state("sam", five: window(24, resetsIn: 9_000))]).last,
+            "sam:24%[▓▓░░░░░░░░]@10:30am/2h 30m",
+            "every token substitutes, and {pct} is not padded here"
+        )
+
+        // The no-data template: only {name} is real — there is no bar, percent, or
+        // reset to offer, so unlike the main template, nothing else substitutes.
+        let noData = AppSettings(menuBarNoDataTemplate: "{name} [{pct} pending]")
+        t.checkEqual(
+            menuBarText(noData, accounts: [state("sam", noSnapshot: true)]).last,
+            "sam [{pct} pending]",
+            "no-data template: only {name} substitutes, everything else stands as literal"
+        )
+
+        // Custom separator, including a bare space — trimming it would silently
+        // turn "a space" into "nothing," which is not what emptying the field does.
+        let spaced = AppSettings(menuBarSeparator: " ")
+        t.checkEqual(
+            menuBarText(spaced, accounts: [
+                state("a", five: window(1, resetsIn: 600)), state("b", five: window(2, resetsIn: 600)),
+            ]),
+            ["◐", " ", "a 1%", " ", "b 2%"],
+            "a single-space separator is preserved, distinct from the icon's own leading space"
+        )
+
+        // Max accounts caps the menu bar only — the dropdown still gets every account.
+        let capped = AppSettings(menuBarMaxAccounts: 1)
+        let vm = render(
+            accounts: [state("a", five: window(1, resetsIn: 600)), state("b", five: window(2, resetsIn: 600))],
+            settings: capped, now: now
+        )
+        t.checkEqual(vm.menuBar.map(\.text), ["◐", " ", "a 1%"], "menu bar stops at the cap")
+        t.checkEqual(vm.accounts.map(\.label), ["a", "b"], "…but the dropdown is not capped")
+
+        // Past a window's reset, its resets_at is stale indefinitely (until a new
+        // session reports a fresh one) — a menu bar template referencing it must
+        // degrade to "—", not print a negative or garbled countdown.
+        let withReset = AppSettings(menuBarTemplate: "{name} {pct} resets {reset_at} in {reset_in}")
+        t.checkEqual(
+            menuBarText(withReset, accounts: [state("a", five: window(80, resetsIn: -3_600))]).last,
+            "a 0% resets — in —",
+            "a stale reset time renders as \"—\", not a garbled clock or negative countdown"
+        )
+    }
+
     // MARK: Snapshot present but tap gone: data would be frozen — still noted
 
     t.checkEqual(

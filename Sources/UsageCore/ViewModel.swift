@@ -66,11 +66,34 @@ public struct ViewModel: Equatable {
 public func render(
     accounts: [AccountState], settings: AppSettings, now: Date, calendar: Calendar = .current
 ) -> ViewModel {
-    var segments = [StyledText("◐", .normal)]
-    for (i, state) in accounts.enumerated() {
-        segments.append(StyledText(i == 0 ? " " : " · ", .dimmed))
-        segments.append(menuBarSegment(state, settings: settings, now: now))
+    let shown = settings.menuBarMaxAccounts > 0
+        ? Array(accounts.prefix(settings.menuBarMaxAccounts))
+        : accounts
+    let accountSegments = shown.map {
+        menuBarSegment($0, settings: settings, now: now, calendar: calendar)
     }
+    // A user can template every account's segment down to nothing (an empty
+    // menuBarTemplate, say) — accidentally or not. When that happens the icon
+    // shows regardless of the setting: a status item with nothing to look at or
+    // click is a bug, not a customization.
+    let hasVisibleText = accountSegments.contains {
+        !$0.text.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    var segments: [StyledText] = []
+    if settings.showMenuBarIcon || !hasVisibleText {
+        segments.append(StyledText("◐", .normal))
+        if !accountSegments.isEmpty {
+            segments.append(StyledText(" ", .dimmed))
+        }
+    }
+    for (i, segment) in accountSegments.enumerated() {
+        if i > 0 {
+            segments.append(StyledText(settings.menuBarSeparator, .dimmed))
+        }
+        segments.append(segment)
+    }
+
     return ViewModel(
         menuBar: segments,
         accounts: accounts.map {
@@ -81,13 +104,21 @@ public func render(
     )
 }
 
-private func menuBarSegment(_ state: AccountState, settings: AppSettings, now: Date) -> StyledText {
+private func menuBarSegment(
+    _ state: AccountState, settings: AppSettings, now: Date, calendar: Calendar
+) -> StyledText {
     let label = state.account.label
     guard let five = state.snapshot?.fiveHour else {
-        return StyledText("\(label) —", .dimmed)
+        return StyledText(Format.menuBarText(settings.menuBarNoDataTemplate, name: label), .dimmed)
     }
     let p = effectivePercentage(five, now: now)
-    return StyledText("\(label) \(Format.percent(p))", tone(p, settings))
+    return StyledText(
+        Format.row(
+            settings.menuBarTemplate, name: label, percentage: p,
+            resetsAt: five.resetsAt, now: now, calendar: calendar, padPercent: false
+        ),
+        tone(p, settings)
+    )
 }
 
 /// No "updated Nm ago" line, deliberately. A figure that renders at all belongs
@@ -172,22 +203,30 @@ private func absenceNote(_ status: TapStatus) -> String {
 
 enum Format {
     /// Substitutes the known tokens and leaves everything else — including any
-    /// token it does not know — standing as literal text.
+    /// token it does not know — standing as literal text. `padPercent` is off for
+    /// the menu bar: the column alignment exists for a vertical list of rows, and
+    /// one inline status-item segment isn't one.
     static func row(
         _ template: String, name: String, percentage: Double,
-        resetsAt: Date, now: Date, calendar: Calendar
+        resetsAt: Date, now: Date, calendar: Calendar, padPercent: Bool = true
     ) -> String {
         var out = template
         for (token, value) in [
             ("{name}", name),
             ("{bar}", bar(percentage)),
-            ("{pct}", column(percent(percentage))),
+            ("{pct}", padPercent ? column(percent(percentage)) : percent(percentage)),
             ("{reset_at}", clock(resetsAt, now: now, calendar: calendar)),
             ("{reset_in}", countdown(from: now, to: resetsAt)),
         ] {
             out = out.replacingOccurrences(of: token, with: value)
         }
         return out
+    }
+
+    /// The no-data template's only meaningful token: there is no bar, percentage,
+    /// or reset time to offer yet, so unlike `row`, nothing else substitutes.
+    static func menuBarText(_ template: String, name: String) -> String {
+        template.replacingOccurrences(of: "{name}", with: name)
     }
 
     /// Right-aligned in a 4-wide column ("100%", " 62%", "  0%") so that in the
@@ -201,7 +240,13 @@ enum Format {
     /// because a bare time on a 7-day window would name a moment days away as if
     /// it were this evening. 12- or 24-hour per the locale; the space macOS puts
     /// before AM/PM is squeezed out to keep the row narrow.
+    /// A past date renders as "—" rather than a stale clock reading: the dropdown
+    /// never calls this once a window's reset has passed (it states the inference
+    /// in words instead — see `windowView`), but the menu bar template has no such
+    /// bypass, and a snapshot's `resets_at` stays in the past indefinitely once
+    /// its window empties, until a new session reports a fresh one.
     static func clock(_ date: Date, now: Date, calendar: Calendar) -> String {
+        guard date > now else { return "—" }
         func formatter(_ template: String) -> DateFormatter {
             let f = DateFormatter()
             f.calendar = calendar
@@ -232,7 +277,10 @@ enum Format {
             + String(repeating: "░", count: width - filled)
     }
 
+    /// Same reasoning as `clock`: a non-positive interval means the moment has
+    /// already passed, and there's nothing honest to count down to.
     static func countdown(from now: Date, to date: Date) -> String {
+        guard date > now else { return "—" }
         let total = Int(date.timeIntervalSince(now))
         let days = total / 86400
         let hours = (total % 86400) / 3600

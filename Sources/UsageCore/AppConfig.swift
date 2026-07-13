@@ -1,20 +1,35 @@
 import Foundation
 
-/// What the app persists: the registered accounts, the one threshold, the row
-/// template.
+/// What the app persists: the registered accounts and everything `AppSettings`
+/// holds.
 public struct AppConfig: Equatable, Codable {
     public var accounts: [Account]
     public var warnThreshold: Double
     public var rowTemplate: String
+    public var showMenuBarIcon: Bool
+    public var menuBarTemplate: String
+    public var menuBarNoDataTemplate: String
+    public var menuBarSeparator: String
+    public var menuBarMaxAccounts: Int
 
     public init(
         accounts: [Account] = [],
         warnThreshold: Double = 75,
-        rowTemplate: String = AppSettings.defaultRowTemplate
+        rowTemplate: String = AppSettings.defaultRowTemplate,
+        showMenuBarIcon: Bool = true,
+        menuBarTemplate: String = AppSettings.defaultMenuBarTemplate,
+        menuBarNoDataTemplate: String = AppSettings.defaultMenuBarNoDataTemplate,
+        menuBarSeparator: String = AppSettings.defaultMenuBarSeparator,
+        menuBarMaxAccounts: Int = 0
     ) {
         self.accounts = accounts
         self.warnThreshold = warnThreshold
         self.rowTemplate = rowTemplate
+        self.showMenuBarIcon = showMenuBarIcon
+        self.menuBarTemplate = menuBarTemplate
+        self.menuBarNoDataTemplate = menuBarNoDataTemplate
+        self.menuBarSeparator = menuBarSeparator
+        self.menuBarMaxAccounts = menuBarMaxAccounts
     }
 
     /// Every field is optional on the way in, falling back to its default. A
@@ -28,12 +43,28 @@ public struct AppConfig: Equatable, Codable {
             accounts: try c.decodeIfPresent([Account].self, forKey: .accounts) ?? [],
             warnThreshold: try c.decodeIfPresent(Double.self, forKey: .warnThreshold) ?? 75,
             rowTemplate: try c.decodeIfPresent(String.self, forKey: .rowTemplate)
-                ?? AppSettings.defaultRowTemplate
+                ?? AppSettings.defaultRowTemplate,
+            showMenuBarIcon: try c.decodeIfPresent(Bool.self, forKey: .showMenuBarIcon) ?? true,
+            menuBarTemplate: try c.decodeIfPresent(String.self, forKey: .menuBarTemplate)
+                ?? AppSettings.defaultMenuBarTemplate,
+            menuBarNoDataTemplate: try c.decodeIfPresent(String.self, forKey: .menuBarNoDataTemplate)
+                ?? AppSettings.defaultMenuBarNoDataTemplate,
+            menuBarSeparator: try c.decodeIfPresent(String.self, forKey: .menuBarSeparator)
+                ?? AppSettings.defaultMenuBarSeparator,
+            menuBarMaxAccounts: try c.decodeIfPresent(Int.self, forKey: .menuBarMaxAccounts) ?? 0
         )
     }
 
     public var settings: AppSettings {
-        AppSettings(warnThreshold: warnThreshold, rowTemplate: rowTemplate)
+        AppSettings(
+            warnThreshold: warnThreshold,
+            rowTemplate: rowTemplate,
+            showMenuBarIcon: showMenuBarIcon,
+            menuBarTemplate: menuBarTemplate,
+            menuBarNoDataTemplate: menuBarNoDataTemplate,
+            menuBarSeparator: menuBarSeparator,
+            menuBarMaxAccounts: menuBarMaxAccounts
+        )
     }
 
     // Account mutations address an account by its config directory — its identity —

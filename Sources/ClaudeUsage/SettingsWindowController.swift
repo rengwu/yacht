@@ -40,6 +40,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
 
         stack.addArrangedSubview(header("General"))
         stack.addArrangedSubview(launchAtLoginRow())
+        stack.addArrangedSubview(showMenuBarIconRow())
         stack.addArrangedSubview(caption("Warning threshold"))
         stack.addArrangedSubview(thresholdRow())
 
@@ -73,6 +74,26 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         // MARK: Advanced
 
         stack.addArrangedSubview(header("Advanced"))
+
+        stack.addArrangedSubview(caption("Menu bar text"))
+        stack.addArrangedSubview(menuBarTemplateRow())
+        stack.addArrangedSubview(dimmed(
+            "{name} {bar} {pct} {reset_at} (8:00pm) {reset_in} (1h 24m) — same tokens as the"
+                + " dropdown row; anything else is literal."
+        ))
+
+        stack.addArrangedSubview(caption("Menu bar text — no data yet"))
+        stack.addArrangedSubview(menuBarNoDataTemplateRow())
+        stack.addArrangedSubview(dimmed(
+            "Only {name} substitutes here — there's no bar, percent, or reset time yet."
+        ))
+
+        stack.addArrangedSubview(caption("Menu bar separator"))
+        stack.addArrangedSubview(menuBarSeparatorRow())
+
+        stack.addArrangedSubview(caption("Max accounts shown in menu bar"))
+        stack.addArrangedSubview(menuBarMaxAccountsRow())
+
         stack.addArrangedSubview(caption("Dropdown row template"))
         stack.addArrangedSubview(rowTemplateRow())
         stack.addArrangedSubview(dimmed(
@@ -168,8 +189,71 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         return row([check])
     }
 
+    /// Unchecking this is not absolute — `render` shows the icon anyway if every
+    /// account's text has gone empty, so the status item is never unclickable.
+    /// See the comment on `AppSettings.showMenuBarIcon`.
+    private func showMenuBarIconRow() -> NSView {
+        let check = NSButton(
+            checkboxWithTitle: "Show menu bar icon",
+            target: self, action: #selector(toggleShowMenuBarIcon(_:))
+        )
+        check.state = app.config.showMenuBarIcon ? .on : .off
+        return row([check])
+    }
+
     private func thresholdText() -> String {
         "orange at \(Int(app.config.warnThreshold))%, red at \(Int(app.config.settings.criticalThreshold))%"
+    }
+
+    private func menuBarTemplateRow() -> NSView {
+        let field = NSTextField(string: app.config.menuBarTemplate)
+        field.identifier = NSUserInterfaceItemIdentifier("menubar-template")
+        field.delegate = self
+        field.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        field.widthAnchor.constraint(equalToConstant: 220).isActive = true
+        let reset = NSButton(title: "Reset", target: self, action: #selector(resetMenuBarTemplate))
+        return row([field, reset])
+    }
+
+    private func menuBarNoDataTemplateRow() -> NSView {
+        let field = NSTextField(string: app.config.menuBarNoDataTemplate)
+        field.identifier = NSUserInterfaceItemIdentifier("menubar-nodata-template")
+        field.delegate = self
+        field.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        field.widthAnchor.constraint(equalToConstant: 220).isActive = true
+        let reset = NSButton(
+            title: "Reset", target: self, action: #selector(resetMenuBarNoDataTemplate)
+        )
+        return row([field, reset])
+    }
+
+    /// No width-based fallback and no font distinct from its own row: a separator
+    /// is typically one or two glyphs, not a template, so it gets a narrow field.
+    private func menuBarSeparatorRow() -> NSView {
+        let field = NSTextField(string: app.config.menuBarSeparator)
+        field.identifier = NSUserInterfaceItemIdentifier("menubar-separator")
+        field.delegate = self
+        field.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        field.widthAnchor.constraint(equalToConstant: 60).isActive = true
+        let reset = NSButton(title: "Reset", target: self, action: #selector(resetMenuBarSeparator))
+        return row([field, reset])
+    }
+
+    private func menuBarMaxAccountsRow() -> NSView {
+        let stepper = NSStepper()
+        stepper.minValue = 0
+        stepper.maxValue = 20
+        stepper.integerValue = app.config.menuBarMaxAccounts
+        stepper.target = self
+        stepper.action = #selector(menuBarMaxAccountsChanged(_:))
+        let label = dimmed(menuBarMaxAccountsText())
+        label.identifier = NSUserInterfaceItemIdentifier("menubar-max-accounts-label")
+        return row([stepper, label])
+    }
+
+    private func menuBarMaxAccountsText() -> String {
+        let n = app.config.menuBarMaxAccounts
+        return n == 0 ? "no limit" : "\(n) account\(n == 1 ? "" : "s")"
     }
 
     // MARK: - Actions
@@ -246,6 +330,36 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         }
     }
 
+    @objc private func toggleShowMenuBarIcon(_ sender: NSButton) {
+        app.update { $0.showMenuBarIcon = sender.state == .on }
+    }
+
+    @objc private func resetMenuBarTemplate() {
+        app.update { $0.menuBarTemplate = AppSettings.defaultMenuBarTemplate }
+        reload()
+    }
+
+    @objc private func resetMenuBarNoDataTemplate() {
+        app.update { $0.menuBarNoDataTemplate = AppSettings.defaultMenuBarNoDataTemplate }
+        reload()
+    }
+
+    @objc private func resetMenuBarSeparator() {
+        app.update { $0.menuBarSeparator = AppSettings.defaultMenuBarSeparator }
+        reload()
+    }
+
+    @objc private func menuBarMaxAccountsChanged(_ sender: NSStepper) {
+        app.update { $0.menuBarMaxAccounts = sender.integerValue }
+        // As with the threshold slider: update in place so the stepper doesn't
+        // get torn out from under a click-and-hold.
+        for case let text as NSTextField in stack.arrangedSubviews
+            .compactMap({ ($0 as? NSStackView)?.arrangedSubviews }).joined()
+        where text.identifier?.rawValue == "menubar-max-accounts-label" {
+            text.stringValue = menuBarMaxAccountsText()
+        }
+    }
+
     /// Closing the window with a label field still being edited would otherwise
     /// drop the pending rename — `controlTextDidEndEditing` never fires because
     /// editing never "ended." Resigning first responder ends it, committing the
@@ -259,27 +373,46 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         reload()
     }
 
-    /// Both editable fields land here, told apart by identifier. This notification
-    /// can arrive *after* the click that removed the very account being edited —
-    /// hence the rename by config directory, which finds nothing and does nothing
-    /// when that account is gone.
+    /// Every editable field lands here, told apart by identifier. This
+    /// notification can arrive *after* the click that removed the very account
+    /// being edited — hence the rename by config directory, which finds nothing
+    /// and does nothing when that account is gone.
     func controlTextDidEndEditing(_ notification: Notification) {
         guard let field = notification.object as? NSTextField,
               let id = field.identifier?.rawValue else { return }
-        let text = field.stringValue.trimmingCharacters(in: .whitespaces)
 
-        if id == "row-template" {
-            // An emptied field means "give me the default back", not "render an
-            // empty row" — a blank row would leave the account with no numbers at
-            // all and no way to tell why.
-            app.update { $0.rowTemplate = text.isEmpty ? AppSettings.defaultRowTemplate : text }
-            field.stringValue = app.config.rowTemplate
+        // Not trimmed: unlike the templates below, whitespace *is* the separator's
+        // content — a lone space is a legitimate, common choice, and trimming it
+        // would silently turn "a space" into "nothing" without the user asking.
+        // Empty is also left alone here, for the same reason: pressing accounts
+        // together with no separator at all is a real choice, not a mistake.
+        if id == "menubar-separator" {
+            app.update { $0.menuBarSeparator = field.stringValue }
             return
         }
 
-        guard id.hasPrefix("label:"), !text.isEmpty else { return }
-        let dir = URL(fileURLWithPath: String(id.dropFirst("label:".count)))
-        app.update { $0.relabel(configDir: dir, to: text) }
+        let text = field.stringValue.trimmingCharacters(in: .whitespaces)
+
+        // An emptied template field means "give me the default back," not "render
+        // an empty row" — a blank template would leave the account with nothing
+        // shown and no way to tell why.
+        switch id {
+        case "row-template":
+            app.update { $0.rowTemplate = text.isEmpty ? AppSettings.defaultRowTemplate : text }
+            field.stringValue = app.config.rowTemplate
+        case "menubar-template":
+            app.update { $0.menuBarTemplate = text.isEmpty ? AppSettings.defaultMenuBarTemplate : text }
+            field.stringValue = app.config.menuBarTemplate
+        case "menubar-nodata-template":
+            app.update {
+                $0.menuBarNoDataTemplate = text.isEmpty ? AppSettings.defaultMenuBarNoDataTemplate : text
+            }
+            field.stringValue = app.config.menuBarNoDataTemplate
+        default:
+            guard id.hasPrefix("label:"), !text.isEmpty else { return }
+            let dir = URL(fileURLWithPath: String(id.dropFirst("label:".count)))
+            app.update { $0.relabel(configDir: dir, to: text) }
+        }
     }
 
     // MARK: - Small helpers

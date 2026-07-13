@@ -62,12 +62,52 @@ public struct AppSettings: Equatable {
 
     public static let defaultRowTemplate = "{name}  {bar}  {pct}  ·  reset {reset_at}"
 
+    /// Whether the status item shows the "◐" glyph. Not absolute: `render` shows
+    /// it anyway when there would otherwise be nothing to click — see `menuBar`.
+    public var showMenuBarIcon: Bool
+
+    /// One account's segment of the status item, as a template over the same
+    /// tokens as `rowTemplate` (`{bar}`/`{reset_at}`/`{reset_in}` all work, though
+    /// the bar is an odd fit for one inline line). `{pct}` is not column-padded
+    /// here — that alignment exists for a vertical list, and this isn't one.
+    public var menuBarTemplate: String
+
+    public static let defaultMenuBarTemplate = "{name} {pct}"
+
+    /// An account with no snapshot yet has no bar, percentage, or reset to show,
+    /// so it gets its own template — one where only `{name}` is meaningful.
+    public var menuBarNoDataTemplate: String
+
+    public static let defaultMenuBarNoDataTemplate = "{name} —"
+
+    /// Between account segments in the status item.
+    public var menuBarSeparator: String
+
+    public static let defaultMenuBarSeparator = " · "
+
+    /// Caps how many registered accounts appear in the status item; `0` means no
+    /// cap. The dropdown is unaffected — every account still has a section there.
+    public var menuBarMaxAccounts: Int
+
     /// At or above this a figure renders as `.critical`. Derived, not settable.
     public var criticalThreshold: Double { warnThreshold + (100 - warnThreshold) / 2 }
 
-    public init(warnThreshold: Double = 75, rowTemplate: String = AppSettings.defaultRowTemplate) {
+    public init(
+        warnThreshold: Double = 75,
+        rowTemplate: String = AppSettings.defaultRowTemplate,
+        showMenuBarIcon: Bool = true,
+        menuBarTemplate: String = AppSettings.defaultMenuBarTemplate,
+        menuBarNoDataTemplate: String = AppSettings.defaultMenuBarNoDataTemplate,
+        menuBarSeparator: String = AppSettings.defaultMenuBarSeparator,
+        menuBarMaxAccounts: Int = 0
+    ) {
         self.warnThreshold = warnThreshold
         self.rowTemplate = rowTemplate
+        self.showMenuBarIcon = showMenuBarIcon
+        self.menuBarTemplate = menuBarTemplate
+        self.menuBarNoDataTemplate = menuBarNoDataTemplate
+        self.menuBarSeparator = menuBarSeparator
+        self.menuBarMaxAccounts = menuBarMaxAccounts
     }
 }
 

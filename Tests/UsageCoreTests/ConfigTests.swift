@@ -19,7 +19,12 @@ func runConfigTests(_ t: Harness) {
                 Account(label: "jane", configDir: URL(fileURLWithPath: "/Users/x/.claude2")),
             ],
             warnThreshold: 80,
-            rowTemplate: "{name} {pct}"
+            rowTemplate: "{name} {pct}",
+            showMenuBarIcon: false,
+            menuBarTemplate: "{name}: {pct}",
+            menuBarNoDataTemplate: "{name} (waiting)",
+            menuBarSeparator: " | ",
+            menuBarMaxAccounts: 3
         )
         try ConfigStore.save(config, to: url)
         t.checkEqual(ConfigStore.load(from: url), config, "config round-trips")
@@ -44,6 +49,11 @@ func runConfigTests(_ t: Harness) {
             loaded.rowTemplate, AppSettings.defaultRowTemplate,
             "…and only the missing key falls back to its default"
         )
+        t.checkEqual(loaded.showMenuBarIcon, true, "…every menu bar key not yet invented also defaults")
+        t.checkEqual(loaded.menuBarTemplate, AppSettings.defaultMenuBarTemplate, "…template")
+        t.checkEqual(loaded.menuBarNoDataTemplate, AppSettings.defaultMenuBarNoDataTemplate, "…no-data template")
+        t.checkEqual(loaded.menuBarSeparator, AppSettings.defaultMenuBarSeparator, "…separator")
+        t.checkEqual(loaded.menuBarMaxAccounts, 0, "…max accounts")
     } catch { t.check(false, "old-config fixture setup threw \(error)") }
 
     t.checkEqual(

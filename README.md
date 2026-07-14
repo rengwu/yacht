@@ -8,13 +8,13 @@ A macOS menu bar app that shows Claude Code rate-limit usage. Multiaccount-frien
 
 ## Features
 
-- Multiple accounts, each pointed at its own `~/.claude`-style config
+- [Multiple accounts](#running-multiple-claude-accounts), each pointed at its own `~/.claude`-style config
   directory (auto-discovered, or add any folder by hand)
 - Per-account 5-hour and 7-day usage bars with reset countdowns
 - Configurable warning/critical color thresholds
-- Customizable menu bar text, dropdown row text, separators, and icon
-  (with a preset picker)
-- Optional launch at login
+- Customizable menu bar text, dropdown row text, separators
+- Customizable menu bar icon (with a preset picker)
+- Launch at login
 
 <img src="https://i.imgur.com/Hfk4aoS.png" style="width: 520px" />
 

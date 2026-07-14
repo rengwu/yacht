@@ -1,4 +1,4 @@
-# ⛵️ Yacht (yet another Claude headroom tracker)
+# ⛵️ Yacht (yet another claude headroom tracker)
 
 <img src="https://i.imgur.com/OHvWTz8.png" style="width: 400px" />
 

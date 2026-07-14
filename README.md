@@ -1,4 +1,4 @@
-# another claude tracker
+# Yacht
 
 <img src="https://i.imgur.com/JWiHqsg.png" />
 
@@ -42,9 +42,9 @@ never break the Claude Code session hosting it.
 ./build.sh
 ```
 
-Builds a release binary and assembles an ad-hoc-signed
-`build/another-claude-tracker.app`. Move it to `/Applications` (or run it in
-place) and launch it like any other app.
+Builds a release binary and assembles an ad-hoc-signed `build/Yacht.app`.
+Move it to `/Applications` (or run it in place) and launch it like any other
+app.
 
 To build with a specific version stamped into the bundle:
 
@@ -60,14 +60,14 @@ To build with a specific version stamped into the bundle:
    offered automatically, or use **Add Claude Config Folder…** for anything
    else).
 4. Click **Install Tap** next to the account. This writes the tap script to
-   `~/Library/Application Support/AnotherClaudeTracker/` and points that account's
+   `~/Library/Application Support/Yacht/` and points that account's
    `settings.json` `statusLine` at it, preserving every other key already in
    the file. If another status line command is already installed, the app
    tells you rather than overwriting it silently.
 5. Usage data appears after Claude Code's next turn for that account.
 
 All settings persist to
-`~/Library/Application Support/AnotherClaudeTracker/config.json`.
+`~/Library/Application Support/Yacht/config.json`.
 
 ## Development
 
@@ -83,8 +83,8 @@ Project layout:
 
 - `Sources/UsageCore` — model, config, tap install/deploy, and view-model
   rendering. No AppKit dependency, so it's testable headless.
-- `Sources/AnotherClaudeTracker` — the app: status item, settings window, launch-at-
-  login. A thin projection of `UsageCore`'s view model.
+- `Sources/Yacht` — the app: status item, settings window, launch-at-login.
+  A thin projection of `UsageCore`'s view model.
 - `Tests/UsageCoreTests` — the test suite.
 - `tap/claude-usage-tap.sh` — the tap script, kept in sync with the copy
   embedded in `UsageCore` (test-enforced).
@@ -99,9 +99,9 @@ git push origin v1.0.0
 ```
 
 This triggers `.github/workflows/release.yml`, which builds the app, stamps
-the version, zips it, and publishes a GitHub Release with the zip attached.
-Every push and PR to `main` also runs `.github/workflows/ci.yml` (build +
-test).
+the version, packages it as a DMG, and publishes a GitHub Release with the
+DMG attached. Every push and PR to `main` also runs
+`.github/workflows/ci.yml` (build + test).
 
-The app is ad-hoc signed, not notarized — anyone downloading a release zip
-will need to right-click → Open the first time to get past Gatekeeper.
+The app is ad-hoc signed, not notarized — anyone downloading the DMG will
+need to right-click → Open the first time to get past Gatekeeper.

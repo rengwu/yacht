@@ -3,7 +3,7 @@ import UsageCore
 
 /// The installer seam: given a settings file, install and assert on what results.
 func runInstallerTests(_ t: Harness) {
-    let tap = "/Users/x/Library/Application Support/AnotherClaudeTracker/claude-usage-tap.sh"
+    let tap = "/Users/x/Library/Application Support/Yacht/claude-usage-tap.sh"
 
     /// The real shape of the user's hand-maintained ~/.claude/settings.json —
     /// model, permissions, plugins, effort level. The load-bearing fixture.

@@ -147,7 +147,7 @@ func runConfigTests(_ t: Harness) {
         // deployDir carries a space ("Application Support") on purpose: it is the
         // real app location, and the space is exactly what broke the tap in
         // acceptance. The returned command must be shell-quoted, not the bare path.
-        let deployDir = root.appendingPathComponent("Application Support/AnotherClaudeTracker")
+        let deployDir = root.appendingPathComponent("Application Support/Yacht")
         let scriptURL = TapDeployment.scriptURL(in: deployDir)
         let command = try TapDeployment.deploy(to: deployDir)
         t.checkEqual(

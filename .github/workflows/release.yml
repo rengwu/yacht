@@ -22,17 +22,17 @@ jobs:
         run: |
           brew install create-dmg
           create-dmg \
-            --volname "another claude tracker" \
+            --volname "Yacht" \
             --window-size 500 320 \
             --icon-size 100 \
-            --icon "another-claude-tracker.app" 125 160 \
+            --icon "Yacht.app" 125 160 \
             --app-drop-link 375 160 \
             --no-internet-enable \
-            "build/another-claude-tracker-${GITHUB_REF_NAME}.dmg" \
-            "build/another-claude-tracker.app"
+            "build/yacht-${GITHUB_REF_NAME}.dmg" \
+            "build/Yacht.app"
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/another-claude-tracker-*.dmg
+          files: build/yacht-*.dmg
           generate_release_notes: true

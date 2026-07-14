@@ -39,7 +39,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
             styleMask: [.titled, .closable],
             backing: .buffered, defer: false
         )
-        window.title = "another claude tracker settings"
+        window.title = "Yacht Settings"
         window.center()
         super.init(window: window)
         window.delegate = self

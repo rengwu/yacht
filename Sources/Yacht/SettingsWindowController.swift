@@ -227,13 +227,13 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
     /// The default glyph, plus a much larger pool than the popover ever shows
     /// at once — `showMenuBarIconPresets` samples `presetsShown` of these at
     /// random on every open, so the grid is never the same list twice. Grouped
-    /// by theme rather than picked at random itself: AI/hardware, time (the
-    /// moon phases echo ◐ directly), usage/metrics, the uncanny/mystical angle
+    /// by theme rather than picked at random itself: AI/hardware, time (moon
+    /// phases and clocks), usage/metrics, the uncanny/mystical angle
     /// on what a model actually is, learning, thinking, plain fun, expressions,
     /// body/communication, people, animals, nature/food, alerts/signals, and
     /// objects. A starting point regardless — the field beside it takes
     /// anything.
-    private static let menuBarIconPool: [String] = ["◐"] + [
+    private static let menuBarIconPool: [String] = ["⛵️"] + [
         "🤖", "👾", "🧠", "🦾", "👽", "🛸", "💻", "🖥️", "⌨️",
         "⏳", "⌛", "⏱️", "⏰", "🕰️", "⏲️", "🌙", "🌗", "🌘", "🌑",
         "⚡", "🔋", "🪫",   "🌡️", "📈", "📉", "📊", "🧮",

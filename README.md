@@ -2,8 +2,7 @@
 
 <img src="https://i.imgur.com/u4zyU6o.png" />
 
-A macOS menu bar app that shows Claude Code rate-limit usage — the 5-hour and
-7-day windows, per account — without leaving the menu bar.
+A macOS menu bar app that shows Claude Code rate-limit usage. Multiaccount-friendly.
 
 [![Download for macOS](https://img.shields.io/badge/Download-macOS-blue?style=for-the-badge)](https://github.com/rengwu/yacht/releases/latest/download/Yacht.dmg)
 
@@ -56,6 +55,23 @@ To build with a specific version stamped into the bundle:
 
 All settings persist to
 `~/Library/Application Support/Yacht/config.json`.
+
+## Running multiple Claude accounts
+
+Create another `~/.claude`-style folder and point `CLAUDE_CONFIG_DIR` at it —
+Claude Code treats it as a separate account, prompting a fresh login on first
+run:
+
+```
+CLAUDE_CONFIG_DIR=~/.claude-work claude
+```
+
+Name it `.claude<anything>` and Yacht's account discovery picks it up
+automatically. For convenience, alias it in `~/.zshrc`:
+
+```
+alias claude-work="CLAUDE_CONFIG_DIR=~/.claude-work claude"
+```
 
 ## How it works
 

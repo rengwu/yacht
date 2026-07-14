@@ -47,7 +47,7 @@ func runDisplayTests(_ t: Harness) {
 
     do {
         let vm = render(accounts: [], settings: settings, now: now)
-        t.checkEqual(vm.menuBar, [StyledText("◐", .normal)], "zero accounts: bare glyph")
+        t.checkEqual(vm.menuBar, [StyledText("⛵️", .normal)], "zero accounts: bare glyph")
         t.checkEqual(vm.accounts, [], "zero accounts: empty dropdown")
         t.checkEqual(vm.emptyState, "No accounts registered — open Settings to add one",
                      "zero accounts: dropdown explains itself")
@@ -175,7 +175,7 @@ func runDisplayTests(_ t: Harness) {
         let withIcon = AppSettings()
         let withoutIcon = AppSettings(showMenuBarIcon: false)
         let one = [state("john", five: window(24, resetsIn: 9_000))]
-        t.checkEqual(menuBarText(withIcon, accounts: one).first, "◐", "icon shown by default")
+        t.checkEqual(menuBarText(withIcon, accounts: one).first, "⛵️", "icon shown by default")
         t.checkEqual(
             menuBarText(withoutIcon, accounts: one).first, "john 24%",
             "icon hidden: text starts the bar"
@@ -183,12 +183,12 @@ func runDisplayTests(_ t: Harness) {
 
         // The fallback: hiding the icon must never leave nothing to click.
         t.checkEqual(
-            menuBarText(withoutIcon, accounts: []), ["◐"],
+            menuBarText(withoutIcon, accounts: []), ["⛵️"],
             "icon hidden + zero accounts: forced back on, since there'd be nothing else"
         )
         let blank = AppSettings(showMenuBarIcon: false, menuBarTemplate: "", menuBarNoDataTemplate: "")
         t.checkEqual(
-            menuBarText(blank, accounts: one), ["◐", " ", ""],
+            menuBarText(blank, accounts: one), ["⛵️", " ", ""],
             "icon hidden + a template that renders nothing: forced back on too"
         )
         // A second account with real text is enough to keep the icon off.
@@ -242,7 +242,7 @@ func runDisplayTests(_ t: Harness) {
             menuBarText(spaced, accounts: [
                 state("a", five: window(1, resetsIn: 600)), state("b", five: window(2, resetsIn: 600)),
             ]),
-            ["◐", " ", "a 1%", " ", "b 2%"],
+            ["⛵️", " ", "a 1%", " ", "b 2%"],
             "a single-space separator is preserved, distinct from the icon's own leading space"
         )
 
@@ -252,7 +252,7 @@ func runDisplayTests(_ t: Harness) {
             accounts: [state("a", five: window(1, resetsIn: 600)), state("b", five: window(2, resetsIn: 600))],
             settings: capped, now: now
         )
-        t.checkEqual(vm.menuBar.map(\.text), ["◐", " ", "a 1%"], "menu bar stops at the cap")
+        t.checkEqual(vm.menuBar.map(\.text), ["⛵️", " ", "a 1%"], "menu bar stops at the cap")
         t.checkEqual(vm.accounts.map(\.label), ["a", "b"], "…but the dropdown is not capped")
 
         // Past a window's reset, its resets_at is stale indefinitely (until a new
@@ -396,7 +396,7 @@ func runDisplayTests(_ t: Harness) {
                        state("john", seven: window(20, resetsIn: 600))],
             settings: settings, now: now
         )
-        t.checkEqual(vm.menuBar.map(\.text), ["◐", " ", "jane 10%", " · ", "john —"],
+        t.checkEqual(vm.menuBar.map(\.text), ["⛵️", " ", "jane 10%", " · ", "john —"],
                      "registration order preserved; 7-day never enters the bar")
         t.checkEqual(vm.accounts.map(\.label), ["jane", "john"], "dropdown order matches")
         t.checkEqual(vm.accounts[1].windows.count, 1,

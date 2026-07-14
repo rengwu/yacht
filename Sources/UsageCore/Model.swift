@@ -71,7 +71,7 @@ public struct AppSettings: Equatable {
     /// to a monochrome "template" icon the way a real image asset would.
     public var menuBarIcon: String
 
-    public static let defaultMenuBarIcon = "◐"
+    public static let defaultMenuBarIcon = "⛵️"
 
     /// One account's segment of the status item, as a template over the same
     /// tokens as `rowTemplate` (`{bar}`/`{reset_at}`/`{reset_in}` all work, though

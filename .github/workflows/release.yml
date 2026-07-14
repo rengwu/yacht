@@ -18,14 +18,21 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           ./build.sh "$version"
 
-      - name: Zip app
+      - name: Build DMG
         run: |
-          cd build
-          ditto -c -k --sequesterRsrc --keepParent another-claude-tracker.app \
-            "another-claude-tracker-${GITHUB_REF_NAME}.zip"
+          brew install create-dmg
+          create-dmg \
+            --volname "another claude tracker" \
+            --window-size 500 320 \
+            --icon-size 100 \
+            --icon "another-claude-tracker.app" 125 160 \
+            --app-drop-link 375 160 \
+            --no-internet-enable \
+            "build/another-claude-tracker-${GITHUB_REF_NAME}.dmg" \
+            "build/another-claude-tracker.app"
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/another-claude-tracker-*.zip
+          files: build/another-claude-tracker-*.dmg
           generate_release_notes: true

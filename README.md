@@ -1,6 +1,6 @@
-# Yacht
+# ⛵️ Yacht (yet another Claude headroom tracker)
 
-<img src="https://i.imgur.com/JWiHqsg.png" />
+<img src="https://i.imgur.com/u4zyU6o.png" />
 
 A macOS menu bar app that shows Claude Code rate-limit usage — the 5-hour and
 7-day windows, per account — without leaving the menu bar.

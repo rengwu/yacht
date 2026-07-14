@@ -5,19 +5,7 @@
 A macOS menu bar app that shows Claude Code rate-limit usage — the 5-hour and
 7-day windows, per account — without leaving the menu bar.
 
-## How it works
-
-Claude Code can run a `statusLine` command on every turn. This app installs a
-small script (the "tap") as that command for each account you register. The
-tap reads the status line's JSON payload from stdin and, whenever it carries
-`rate_limits`, writes a snapshot to `usage-snapshot.json` inside that
-account's Claude config directory. The app polls those snapshot files and
-renders them in the menu bar and dropdown — it never talks to any network
-itself.
-
-The tap is deliberately inert: it prints nothing (so it never appears as a
-visible status line), always exits `0`, and writes atomically, so it can
-never break the Claude Code session hosting it.
+[![Download for macOS](https://img.shields.io/badge/Download-macOS-blue?style=for-the-badge)](https://github.com/rengwu/yacht/releases/latest/download/Yacht.dmg)
 
 ## Features
 
@@ -68,6 +56,20 @@ To build with a specific version stamped into the bundle:
 
 All settings persist to
 `~/Library/Application Support/Yacht/config.json`.
+
+## How it works
+
+Claude Code can run a `statusLine` command on every turn. This app installs a
+small script (the "tap") as that command for each account you register. The
+tap reads the status line's JSON payload from stdin and, whenever it carries
+`rate_limits`, writes a snapshot to `usage-snapshot.json` inside that
+account's Claude config directory. The app polls those snapshot files and
+renders them in the menu bar and dropdown — it never talks to any network
+itself.
+
+The tap is deliberately inert: it prints nothing (so it never appears as a
+visible status line), always exits `0`, and writes atomically, so it can
+never break the Claude Code session hosting it.
 
 ## Development
 

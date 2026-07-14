@@ -79,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Render cycle
 
-    func refresh() {
+    @objc func refresh() {
         let states = config.accounts.map {
             AccountState.gather(account: $0, tapCommand: AppDelegate.tapCommand)
         }
@@ -108,6 +108,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             menu.addItem(.separator())
         }
+
+        let refresh = NSMenuItem(
+            title: "Refresh", action: #selector(refresh as () -> Void), keyEquivalent: "r"
+        )
+        refresh.target = self
+        menu.addItem(refresh)
 
         let settings = NSMenuItem(
             title: "Settings…", action: #selector(openSettings), keyEquivalent: ","

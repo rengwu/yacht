@@ -1,6 +1,6 @@
 # ⛵️ Yacht (yet another Claude headroom tracker)
 
-<img src="https://i.imgur.com/u4zyU6o.png" />
+<img src="https://i.imgur.com/OHvWTz8.png" style="width: 400px" />
 
 A macOS menu bar app that shows Claude Code rate-limit usage. Multiaccount-friendly.
 
@@ -16,7 +16,7 @@ A macOS menu bar app that shows Claude Code rate-limit usage. Multiaccount-frien
   (with a preset picker)
 - Optional launch at login
 
-<img src="https://i.imgur.com/e7lnzoe.png"/>
+<img src="https://i.imgur.com/Hfk4aoS.png" style="width: 520px" />
 
 ## Requirements
 

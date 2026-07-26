@@ -1,8 +1,6 @@
 ---
 type: task
 blocked_by: [01, 03, 04]
-claimed_by: s1ff5859dd5a2
-claimed_at: 2026-07-26T12:56:59Z
 ---
 
 # Acceptance: watch the real product with you

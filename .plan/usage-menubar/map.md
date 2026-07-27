@@ -43,17 +43,12 @@ three seams; run for real, not just green tests.
 - [Build UsageCore: model + pure display view-model + display-seam tests](./tickets/02-usagecore.md) — the pure render function and its seam suite are green; SwiftPM → sealed `.app` pipeline proven, clearing the precondition for the SMAppService experiment; critical threshold derives as the midpoint of warn and 100.
 - [Build the UI: menu bar projection + settings/registration window](./tickets/03-menu-bar-and-settings.md) — status item, dropdown and settings window live as a decision-free projection; verified in the real menu bar, where the reset-boundary rule fired correctly on real data.
 - [Build launch-at-login + lifecycle](./tickets/04-launch-at-login.md) — the SMAppService experiment *succeeded* on the ad-hoc bundle (register→enabled cross-process, confirmed in `dumpbtm`), so the modern API ships and the launch-agent path stays a compile-guarded fallback; the settings checkbox reads live `SMAppService` status (proven to survive a relaunch), and Quit terminates from the app's own menu.
+- [Acceptance: watch the real product with you](./tickets/05-acceptance.md) — **destination reached**: accepted on thirteen days of real use (`Yacht.app` 0.1.4, up since 2026-07-14), both accounts tapped through one shared script and reporting live subscription figures; both fog patches close with no code change — inferred-empty reads as true and stays, the permanent-dash badge goes unbuilt for want of a real confusion; launch-at-login is accepted on ticket 04's `dumpbtm` evidence, unexercised by a real boot.
 
 ## Not yet specified
 
-- **Reset-boundary UX, judged in practice.** The app treats a window past its reset time as
-  empty, but has not *observed* it empty (no fresh session). Whether that should read as
-  "empty" or as "unknown" is a product-behaviour call to make from watching real daily use, not
-  up front. <clears-with: 05>
-- **The permanent-dash explanation.** An API-key account registers fine and correctly shows a
-  dash forever (no subscription rate limits). Whether that silent dash needs the tap-status
-  badge to *say why* is a behaviour call decided by whether it actually confuses in use.
-  <clears-with: 05>
+Nothing outstanding — both deferred behaviour questions were decided from real use in
+[05](./tickets/05-acceptance.md).
 
 ## Out of scope
 

@@ -2,6 +2,8 @@
 type: task
 blocked_by: []
 assets: [.plan/multi-provider/assets/kimi-usages-fixture.json]
+claimed_by: s97027c8afc1a
+claimed_at: 2026-07-29T18:55:42Z
 ---
 
 # Confirm the usage payload under partial quota

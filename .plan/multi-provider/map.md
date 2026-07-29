@@ -48,6 +48,13 @@ real bar, judged over real days.
 
 <!-- one line per resolved ticket: gist + link. -->
 
+- Payload confirmed at partial quota: `remaining` decrements, the two windows step
+  independently, `limits[]` stays one 5h entry (decision 3 stands). **`used` does exist upstream
+  — zero-valued numerics are omitted from the JSON entirely**, correcting a trap in
+  [`spec.md`](./spec.md); expect `remaining` to vanish at an exhausted window. Console (Moderato)
+  matches the payload digit-for-digit, so `limit: 100` is the real paid ceiling and reads as a
+  percentage denominator, not a request count. — [`01`](./tickets/01-confirm-payload.md)
+
 ## Not yet specified
 
 - **How a count-based row renders.** Claude reports percentages; Kimi reports "43 of 100". The

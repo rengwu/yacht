@@ -1,0 +1,41 @@
+{
+  "_comment": "Live GET https://api.kimi.com/coding/v1/usages - captured 2026-07-29T19:00:42Z, HTTP 200, two minutes after partial-a and after ~4 kimi turns. userId redacted. limits[0].detail.used has appeared as \"1\" (remaining 100 -> 99) while the weekly usage held at used 27 / remaining 73: the two windows step independently. limit stayed \"100\" on both; resetTime unchanged on both.",
+  "user": {
+    "userId": "REDACTED",
+    "region": "REGION_OVERSEA",
+    "membership": {
+      "level": "LEVEL_BASIC"
+    },
+    "businessId": ""
+  },
+  "usage": {
+    "limit": "100",
+    "used": "27",
+    "remaining": "73",
+    "resetTime": "2026-08-04T02:16:12.750803Z"
+  },
+  "limits": [
+    {
+      "window": {
+        "duration": 300,
+        "timeUnit": "TIME_UNIT_MINUTE"
+      },
+      "detail": {
+        "limit": "100",
+        "used": "1",
+        "remaining": "99",
+        "resetTime": "2026-07-29T22:16:12.750803Z"
+      }
+    }
+  ],
+  "parallel": {
+    "limit": "10"
+  },
+  "totalQuota": {},
+  "authentication": {
+    "method": "METHOD_ACCESS_TOKEN",
+    "scope": "FEATURE_CODING"
+  },
+  "subType": "TYPE_PURCHASE",
+  "domain": "DOMAIN_NEXUS"
+}

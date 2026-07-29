@@ -1,0 +1,40 @@
+{
+  "_comment": "Live GET https://api.kimi.com/coding/v1/usages - captured 2026-07-29T18:58:42Z, HTTP 200. userId redacted. Partial quota. NOTE: usage.used is present (\"27\") while limits[0].detail has no used key at all - that row was at zero. Same payload, same schema: a zero-valued numeric is omitted, not serialised as \"0\". This is the capture that disproves spec.md's \"no used field\" trap.",
+  "user": {
+    "userId": "REDACTED",
+    "region": "REGION_OVERSEA",
+    "membership": {
+      "level": "LEVEL_BASIC"
+    },
+    "businessId": ""
+  },
+  "usage": {
+    "limit": "100",
+    "used": "27",
+    "remaining": "73",
+    "resetTime": "2026-08-04T02:16:12.750803Z"
+  },
+  "limits": [
+    {
+      "window": {
+        "duration": 300,
+        "timeUnit": "TIME_UNIT_MINUTE"
+      },
+      "detail": {
+        "limit": "100",
+        "remaining": "100",
+        "resetTime": "2026-07-29T22:16:12.750803Z"
+      }
+    }
+  ],
+  "parallel": {
+    "limit": "10"
+  },
+  "totalQuota": {},
+  "authentication": {
+    "method": "METHOD_ACCESS_TOKEN",
+    "scope": "FEATURE_CODING"
+  },
+  "subType": "TYPE_PURCHASE",
+  "domain": "DOMAIN_NEXUS"
+}

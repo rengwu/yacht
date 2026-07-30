@@ -61,19 +61,36 @@ schema. The real response, captured live 2026-07-28 (HTTP 200) and saved as
 "user":{"membership":{"level":"LEVEL_BASIC"}}
 ```
 
-Traps, all confirmed against the live response:
+**Amended 2026-07-29** by [`tickets/01`](./tickets/01-confirm-payload.md), which captured the
+payload at *partial* quota and corrected two traps below — the fixture above is a full-quota
+capture and is therefore not shape-complete. Behaviour confirmed there and not repeated here:
+`remaining` decrements, `limit` holds, the weekly and 5-hour counters step independently, and
+`limits[]` has only ever held the one 300-minute entry. No decision changed.
+
+Traps, confirmed against the live responses:
 
 - **No `label` field.** A row's identity is its `window` — `{duration: 300, timeUnit:
   TIME_UNIT_MINUTE}` is the 5-hour window. Labels are derived, never read.
-- **`remaining`, not `used`.** Percentage math inverts: `used = limit - remaining`.
+- **A zero-valued numeric is omitted, not serialised as `"0"`.** `used` *does* exist upstream —
+  it was absent from the full-quota fixture only because it was zero.
+  [`assets/kimi-usages-partial-a.json`](./assets/kimi-usages-partial-a.json) shows both cases in
+  one response: `usage` carries `"used":"27"` while the 5-hour row, then at zero, carries no
+  `used` key at all. So **every numeric field is optional and absent means `0`** — a decoder that
+  requires one breaks on ordinary payloads. Expect `remaining` to vanish when a window is
+  exhausted, which is the moment the figure matters most. Read `used` when present and fall back
+  to `limit - remaining`; both agreed in every observation.
 - **Numbers are strings.** `"100"`, not `100`.
 - **The two windows are shaped differently.** Weekly is the top-level `usage` object with no
   `window` at all; the 5-hour is the sole entry in `limits[]`. The adapter synthesises two rows
   from two different shapes — this is not one uniform array.
 - **No `extra_usage` upstream.** `totalQuota` is `{}`.
 - **`parallel.limit` is a concurrency cap**, not a usage window. Not a row.
-- The capture was taken at full quota (100/100 on both), so *decrementing is unverified*.
-  Membership reads `LEVEL_BASIC` / `TYPE_PURCHASE`, which names no plan tier.
+- **`limit: 100` is a percentage denominator, not a request count.** The Kimi console renders
+  both windows as bare percentages, and `used` *is* the percentage because the limit is 100. The
+  underlying unit is coarser than a turn (~4.2 turns per unit when measured against local
+  `usage.record` events), so wording like "73 requests left" would be wrong.
+- Membership reads `LEVEL_BASIC` / `TYPE_PURCHASE`, which names no plan tier — that is what a
+  **Moderato** plan looks like on the wire. The tier name is not available from this endpoint.
 
 ## Decisions
 

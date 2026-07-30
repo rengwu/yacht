@@ -14,31 +14,84 @@ public struct Account: Equatable {
     }
 }
 
-/// One rate-limit window: the used percentage as reported (may be fractional)
-/// and the moment it resets. Whether the window is *effectively* empty is a
-/// question about "now", answered at render time — never stored.
-public struct LimitWindow: Equatable {
-    public let usedPercentage: Double
-    public let resetsAt: Date
+/// Which quota period a row measures — a row's *identity*, and the one thing
+/// about it the display rule is allowed to key on. Neither provider sends a
+/// label: Claude names its windows with the JSON keys `five_hour`/`seven_day`,
+/// Kimi identifies one by `window: {duration: 300, timeUnit: TIME_UNIT_MINUTE}`
+/// and the other by being the top-level `usage` object with no window at all.
+/// Each adapter therefore maps its own shape onto these cases, and the label is
+/// derived from there — never read off the wire.
+public enum UsageWindow: Equatable {
+    case fiveHour
+    case weekly
 
-    public init(usedPercentage: Double, resetsAt: Date) {
-        self.usedPercentage = usedPercentage
-        self.resetsAt = resetsAt
+    /// The dropdown's `{name}`, shared so providers agree by default.
+    public var defaultLabel: String {
+        switch self {
+        case .fiveHour: return "5h"
+        case .weekly: return "7d"
+        }
     }
 }
 
-/// The rate-limit block plus the time it was captured. Either window may be
-/// independently absent; both are absent for accounts not on a subscription
-/// plan or before a session's first API response.
+/// One usage window as **absolute counts** — `used` of `limit` — plus the moment
+/// it resets. Counts rather than a percentage because Kimi reports counts and
+/// Claude reports percentages, and `{used, limit}` holds both without a
+/// per-provider special case: a percentage-only source is simply a count out of
+/// 100 (see `SnapshotReader`). The percentage is derived, at render time, where
+/// the "past its own reset" rule already lives — whether a window is
+/// *effectively* empty is a question about "now" and is never stored.
+public struct UsageRow: Equatable {
+    /// Identity: what the display rule keys on.
+    public let window: UsageWindow
+    /// Display only: what `{name}` renders as. Defaults to the window's shared
+    /// label; an adapter overrides it when its own window genuinely reads
+    /// differently, never to re-identify the row.
+    public let label: String
+    public let used: Double
+    public let limit: Double
+    public let resetsAt: Date
+
+    public init(window: UsageWindow, label: String? = nil, used: Double, limit: Double, resetsAt: Date) {
+        self.window = window
+        self.label = label ?? window.defaultLabel
+        self.used = used
+        self.limit = limit
+        self.resetsAt = resetsAt
+    }
+
+    /// `used` as a share of `limit`, unclamped: the display rounds an overshoot
+    /// off (see `Format.percent`) but the tone is decided on the true figure.
+    /// A non-positive `limit` cannot express a share of anything, so it reads as
+    /// 0 rather than dividing by zero — a NaN would reach `Int(_:)` in the
+    /// formatter and trap. No adapter can produce one; this is a floor, not a
+    /// state the UI is meant to distinguish.
+    public var percentage: Double {
+        limit > 0 ? used / limit * 100 : 0
+    }
+}
+
+/// One provider's usage for one account: N rows plus the time they were
+/// captured. Both of Claude's windows are independently absent for an account
+/// not on a subscription plan, or before a session's first API response, so
+/// `rows` may be empty — which the UI shows as no data, never as 0%.
+///
+/// `rows` is in the adapter's own significance order (5-hour, then weekly), and
+/// that is the order the dropdown lists them in. It is *not* how the menu bar
+/// picks its figure: that rule keys on `UsageWindow`, so a snapshot carrying
+/// only a weekly row still reads as "no 5-hour data" rather than promoting it.
 public struct Snapshot: Equatable {
-    public let fiveHour: LimitWindow?
-    public let sevenDay: LimitWindow?
+    public let rows: [UsageRow]
     public let updatedAt: Date
 
-    public init(fiveHour: LimitWindow?, sevenDay: LimitWindow?, updatedAt: Date) {
-        self.fiveHour = fiveHour
-        self.sevenDay = sevenDay
+    public init(rows: [UsageRow], updatedAt: Date) {
+        self.rows = rows
         self.updatedAt = updatedAt
+    }
+
+    /// The row for one window, or `nil` when this provider did not report it.
+    public func row(_ window: UsageWindow) -> UsageRow? {
+        rows.first { $0.window == window }
     }
 }
 

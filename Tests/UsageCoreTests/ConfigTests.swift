@@ -58,6 +58,45 @@ func runConfigTests(_ t: Harness) {
         t.checkEqual(loaded.menuBarMaxAccounts, 0, "…max accounts")
     } catch { t.check(false, "old-config fixture setup threw \(error)") }
 
+    // MARK: A v0.1.4 config — the last release before `Snapshot` became N rows.
+    // The N-row refactor rewrote the display seam, and this is the fixture that
+    // proves it did not reach the persisted file: every key v0.1.4 wrote, in the
+    // shape it wrote it (`configDir` as a bare path), still decodes. Accounts are
+    // asserted as a list of two because the failure this guards against is not a
+    // wrong setting but a silently *emptied* account list — the user's whole setup
+    // gone, with the app looking freshly installed rather than broken.
+
+    do {
+        let url = root.appendingPathComponent("v0.1.4.json")
+        try Data("""
+        {"accounts": [{"label": "john", "configDir": "/Users/x/.claude"},
+                      {"label": "jane", "configDir": "/Users/x/.claude2"}],
+         "warnThreshold": 80,
+         "rowTemplate": "{name}  {bar}  {pct}",
+         "showMenuBarIcon": false,
+         "menuBarIcon": "🤖",
+         "menuBarTemplate": "{name} {pct}",
+         "menuBarNoDataTemplate": "{name} —",
+         "menuBarSeparator": " · ",
+         "menuBarMaxAccounts": 2}
+        """.utf8).write(to: url)
+        let loaded = ConfigStore.load(from: url)
+        t.checkEqual(
+            loaded.accounts,
+            [Account(label: "john", configDir: URL(fileURLWithPath: "/Users/x/.claude")),
+             Account(label: "jane", configDir: URL(fileURLWithPath: "/Users/x/.claude2"))],
+            "v0.1.4 config: every account survives the N-row refactor, in order"
+        )
+        t.checkEqual(loaded.warnThreshold, 80, "v0.1.4 config: threshold")
+        t.checkEqual(loaded.rowTemplate, "{name}  {bar}  {pct}", "v0.1.4 config: row template")
+        t.checkEqual(loaded.showMenuBarIcon, false, "v0.1.4 config: icon toggle")
+        t.checkEqual(loaded.menuBarIcon, "🤖", "v0.1.4 config: icon")
+        t.checkEqual(loaded.menuBarTemplate, "{name} {pct}", "v0.1.4 config: menu bar template")
+        t.checkEqual(loaded.menuBarNoDataTemplate, "{name} —", "v0.1.4 config: no-data template")
+        t.checkEqual(loaded.menuBarSeparator, " · ", "v0.1.4 config: separator")
+        t.checkEqual(loaded.menuBarMaxAccounts, 2, "v0.1.4 config: max accounts")
+    } catch { t.check(false, "v0.1.4 config fixture setup threw \(error)") }
+
     t.checkEqual(
         ConfigStore.load(from: root.appendingPathComponent("missing.json")),
         AppConfig(), "missing config → defaults"

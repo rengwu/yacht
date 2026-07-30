@@ -54,14 +54,17 @@ real bar, judged over real days.
   [`spec.md`](./spec.md); expect `remaining` to vanish at an exhausted window. Console (Moderato)
   matches the payload digit-for-digit, so `limit: 100` is the real paid ceiling and reads as a
   percentage denominator, not a request count. — [`01`](./tickets/01-confirm-payload.md)
+- `Snapshot` is now N `UsageRow`s of absolute `{used, limit}`, with identity in a `UsageWindow`
+  enum kept separate from the display label — the bar keys on the window, never on row order, so
+  a weekly-only snapshot reads as "no 5-hour data" rather than promoting it. A percentage-only
+  source is a count out of 100, which is also Kimi's real denominator, so both providers share
+  one 0–100 scale. Claude's rendered output is unchanged: all 130 prior assertions pass with
+  expectations untouched. **Count-based rows need no new template tokens and a raw count would
+  mislead**, since `limit: 100` makes the percentage and the count the same number and the
+  underlying unit is coarser than a turn. — [`03`](./tickets/03-generalise-usagecore.md)
 
 ## Not yet specified
 
-- **How a count-based row renders.** Claude reports percentages; Kimi reports "43 of 100". The
-  row template's `{pct}` and `{bar}` tokens have no way to say a raw count, and a weekly quota of
-  100 may read better as a count than as a percentage. Whether this needs new template tokens, or
-  falls out of the generalised row model for free, should be visible once rows carry absolute
-  `{used, limit}`. <clears-with: 03>
 - **Whether the reset-boundary rule survives an anniversary-anchored window.** The existing rule
   — a figure past its own `resets_at` renders empty, and inferred-empty reads as true — assumes
   windows reset on a rolling schedule. Kimi's weekly is anchored to the subscription

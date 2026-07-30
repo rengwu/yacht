@@ -22,10 +22,13 @@ func runDisplayTests(_ t: Harness) {
     func account(_ label: String) -> Account {
         Account(label: label, configDir: URL(fileURLWithPath: "/fixtures/\(label)"))
     }
+    /// `five`/`seven` are the two windows Claude reports, in that order — the
+    /// snapshot itself holds N rows, and the row order these build is what the
+    /// Claude reader produces.
     func state(
         _ label: String,
-        five: LimitWindow? = nil,
-        seven: LimitWindow? = nil,
+        five: UsageRow? = nil,
+        seven: UsageRow? = nil,
         updatedAgo: TimeInterval = 180,
         tap: TapStatus = .installed,
         noSnapshot: Bool = false
@@ -33,14 +36,19 @@ func runDisplayTests(_ t: Harness) {
         AccountState(
             account: account(label),
             snapshot: noSnapshot ? nil : Snapshot(
-                fiveHour: five, sevenDay: seven,
+                rows: [five, seven].compactMap { $0 },
                 updatedAt: now.addingTimeInterval(-updatedAgo)
             ),
             tapStatus: tap
         )
     }
-    func window(_ used: Double, resetsIn: TimeInterval) -> LimitWindow {
-        LimitWindow(usedPercentage: used, resetsAt: now.addingTimeInterval(resetsIn))
+    /// A Claude window: a percentage, which the reader carries as a count out of
+    /// 100 (`SnapshotReader.percentageScale`).
+    func window(_ used: Double, resetsIn: TimeInterval) -> UsageRow {
+        UsageRow(window: .fiveHour, used: used, limit: 100, resetsAt: now.addingTimeInterval(resetsIn))
+    }
+    func weekly(_ used: Double, resetsIn: TimeInterval) -> UsageRow {
+        UsageRow(window: .weekly, used: used, limit: 100, resetsAt: now.addingTimeInterval(resetsIn))
     }
 
     // MARK: Zero accounts
@@ -94,7 +102,7 @@ func runDisplayTests(_ t: Harness) {
         let vm = render(
             accounts: [state("john",
                              five: window(23.5, resetsIn: 9_000),      // 10:30am, today
-                             seven: window(41.4, resetsIn: 104_400))], // 1:00pm, tomorrow
+                             seven: weekly(41.4, resetsIn: 104_400))], // 1:00pm, tomorrow
             settings: settings, now: now
         )
         t.checkEqual(vm.menuBar[2], StyledText("john 24%", .normal), "menu bar: 5-hour only, rounded")
@@ -116,7 +124,7 @@ func runDisplayTests(_ t: Harness) {
     do {
         let vm = render(
             accounts: [state("sam", five: window(121, resetsIn: 5_100),    // 9:25am, today
-                             seven: window(62, resetsIn: 158_400))],       // 4:00am, Sunday
+                             seven: weekly(62, resetsIn: 158_400))],       // 4:00am, Sunday
             settings: settings, now: now
         )
         t.checkEqual(vm.menuBar[2], StyledText("sam 100%", .critical), "menu bar: overshoot clamps to 100%")
@@ -224,7 +232,7 @@ func runDisplayTests(_ t: Harness) {
         let withWeekly = AppSettings(menuBarTemplate: "{name} {pct}/{pct_7d}")
         t.checkEqual(
             menuBarText(withWeekly, accounts: [
-                state("sam", five: window(24, resetsIn: 9_000), seven: window(41, resetsIn: 104_400)),
+                state("sam", five: window(24, resetsIn: 9_000), seven: weekly(41, resetsIn: 104_400)),
             ]).last,
             "sam 24%/41%",
             "{pct_7d} reads the 7-day window on its own, alongside the 5-hour {pct}"
@@ -393,7 +401,7 @@ func runDisplayTests(_ t: Harness) {
     do {
         let vm = render(
             accounts: [state("jane", five: window(10, resetsIn: 600)),
-                       state("john", seven: window(20, resetsIn: 600))],
+                       state("john", seven: weekly(20, resetsIn: 600))],
             settings: settings, now: now
         )
         t.checkEqual(vm.menuBar.map(\.text), ["⛵️", " ", "jane 10%", " · ", "john —"],
@@ -414,15 +422,29 @@ func runDisplayTests(_ t: Harness) {
          "updated_at": 1783909816.39}
         """.data(using: .utf8)!
         let snap = SnapshotReader.parse(real)
-        t.checkEqual(snap?.fiveHour?.usedPercentage, 9, "reader: integer percentage")
-        t.checkEqual(snap?.sevenDay?.usedPercentage, 40.5, "reader: fractional percentage")
-        t.checkEqual(snap?.fiveHour?.resetsAt, Date(timeIntervalSince1970: 1_783_924_200),
+        t.checkEqual(snap?.row(.fiveHour)?.used, 9, "reader: integer percentage")
+        t.checkEqual(snap?.row(.weekly)?.used, 40.5, "reader: fractional percentage")
+        t.checkEqual(snap?.row(.fiveHour)?.resetsAt, Date(timeIntervalSince1970: 1_783_924_200),
                      "reader: reset epoch")
+        // A percentage-only source has no denominator of its own, so the reader
+        // supplies the one a percentage implies: a count out of 100.
+        t.checkEqual(snap?.row(.fiveHour)?.limit, 100, "reader: percentages are counts out of 100")
+        t.checkEqual(snap?.row(.weekly)?.percentage, 40.5, "reader: …so the derived share is the figure itself")
+        t.checkEqual(snap?.rows.map(\.window), [.fiveHour, .weekly],
+                     "reader: 5-hour row first, weekly second — the order the dropdown lists")
+        t.checkEqual(snap?.rows.map(\.label), ["5h", "7d"],
+                     "reader: labels are derived from the window, not read from the file")
 
         let partial = """
         {"rate_limits": {"five_hour": {"used_percentage": 1, "resets_at": 2}}, "updated_at": 3}
         """.data(using: .utf8)!
-        t.checkEqual(SnapshotReader.parse(partial)?.sevenDay, nil, "reader: absent window is nil")
+        t.checkEqual(SnapshotReader.parse(partial)?.row(.weekly), nil, "reader: absent window is nil")
+        t.checkEqual(SnapshotReader.parse(partial)?.rows.count, 1,
+                     "reader: an absent window is one fewer row, not an empty one")
+        t.checkEqual(
+            SnapshotReader.parse("{\"updated_at\": 3}".data(using: .utf8)!)?.rows, [],
+            "reader: no rate_limits at all is zero rows — no data, which is not 0%"
+        )
 
         t.checkEqual(SnapshotReader.parse("garbage {{{".data(using: .utf8)!), nil,
                      "reader: garbage is nil, never 0%")

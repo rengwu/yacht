@@ -21,7 +21,9 @@ public struct StyledText: Equatable {
 }
 
 /// One fully-composed row, e.g. `5h  ▓▓░░░░░░░░   24%  ·  reset 10:30am`. The
-/// template decided its shape; the UI only paints it in the tone.
+/// template decided its shape; the UI only paints it in the tone. Named for the
+/// window it renders — one `UsageRow`, projected — because "window" is what the
+/// settings vocabulary (`rowTemplate`, `{pct_7d}`) and the UI already call it.
 public struct WindowView: Equatable {
     public let text: String
     public let tone: Tone
@@ -34,7 +36,7 @@ public struct WindowView: Equatable {
 
 public struct AccountView: Equatable {
     public let label: String
-    public let windows: [WindowView]  // 0–2, in 5-hour / 7-day order
+    public let windows: [WindowView]  // one per reported row, in the provider's order
     public let note: String?          // why data is absent/frozen, when it is
 
     public init(label: String, windows: [WindowView], note: String?) {
@@ -104,15 +106,26 @@ public func render(
     )
 }
 
+// The bar's two figures are hardcoded to the same two windows for every
+// provider: `{pct}` is the 5-hour window and `{pct_7d}` the weekly one. Not a
+// user setting, and not "whichever row is worst" — the 5-hour window is the one
+// that actually binds during a session, and a bar whose meaning moved with the
+// numbers could not be read at a glance. A per-provider picker was designed and
+// dropped once the live payloads showed both providers have exactly these two
+// windows and nothing else; the N-row model stays for a third provider, whose
+// extra rows would appear in the dropdown and leave the bar alone.
+private let barWindow = UsageWindow.fiveHour
+private let barSecondaryWindow = UsageWindow.weekly
+
 private func menuBarSegment(
     _ state: AccountState, settings: AppSettings, now: Date, calendar: Calendar
 ) -> StyledText {
     let label = state.account.label
-    guard let five = state.snapshot?.fiveHour else {
+    guard let five = state.snapshot?.row(barWindow) else {
         return StyledText(Format.menuBarText(settings.menuBarNoDataTemplate, name: label), .dimmed)
     }
     let p = effectivePercentage(five, now: now)
-    let weekly = state.snapshot?.sevenDay.map { effectivePercentage($0, now: now) }
+    let weekly = state.snapshot?.row(barSecondaryWindow).map { effectivePercentage($0, now: now) }
     return StyledText(
         Format.row(
             settings.menuBarTemplate, name: label, percentage: p,
@@ -139,48 +152,46 @@ private func accountView(
             label: state.account.label, windows: [], note: absenceNote(state.tapStatus)
         )
     }
-    var windows: [WindowView] = []
-    if let five = snapshot.fiveHour {
-        windows.append(windowView("5h", five, settings: settings, now: now, calendar: calendar))
-    }
-    if let seven = snapshot.sevenDay {
-        windows.append(windowView("7d", seven, settings: settings, now: now, calendar: calendar))
-    }
     return AccountView(
         label: state.account.label,
-        windows: windows,
+        // Every row the provider reported, in the order it reported them — the
+        // dropdown is the complete picture, where the bar is one figure from it.
+        windows: snapshot.rows.map {
+            windowView($0, settings: settings, now: now, calendar: calendar)
+        },
         note: state.tapStatus == .installed ? nil : absenceNote(state.tapStatus)
     )
 }
 
 private func windowView(
-    _ name: String, _ window: LimitWindow, settings: AppSettings, now: Date, calendar: Calendar
+    _ row: UsageRow, settings: AppSettings, now: Date, calendar: Calendar
 ) -> WindowView {
     // Past the reset there is no reset time to render and no session has confirmed
     // the window is empty, so this row states the inference instead of obeying the
     // template: the template describes a live window, and this wording is a claim
     // about what is known, not a preference.
-    guard now < window.resetsAt else {
+    guard now < row.resetsAt else {
         return WindowView(
-            text: "\(name)  \(Format.bar(0))  \(Format.column(Format.percent(0)))"
+            text: "\(row.label)  \(Format.bar(0))  \(Format.column(Format.percent(0)))"
                 + "  ·  reset passed — empty until a session confirms",
             tone: .normal
         )
     }
-    let p = window.usedPercentage
+    let p = row.percentage
     return WindowView(
         text: Format.row(
-            settings.rowTemplate, name: name, percentage: p,
-            resetsAt: window.resetsAt, now: now, calendar: calendar
+            settings.rowTemplate, name: row.label, percentage: p,
+            resetsAt: row.resetsAt, now: now, calendar: calendar
         ),
         tone: tone(p, settings)
     )
 }
 
 /// Past the reset boundary the window is empty again, whatever the frozen
-/// snapshot still says.
-private func effectivePercentage(_ window: LimitWindow, now: Date) -> Double {
-    now >= window.resetsAt ? 0 : window.usedPercentage
+/// snapshot still says. The row stores counts; the share of them is only ever a
+/// question about now, and this is where it is answered.
+private func effectivePercentage(_ row: UsageRow, now: Date) -> Double {
+    now >= row.resetsAt ? 0 : row.percentage
 }
 
 private func tone(_ percentage: Double, _ settings: AppSettings) -> Tone {

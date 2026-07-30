@@ -1,6 +1,8 @@
 ---
 type: task
 blocked_by: []
+claimed_by: sfa6334503ffe
+claimed_at: 2026-07-30T16:46:19Z
 ---
 
 # Go provider-agnostic in repo and docs naming

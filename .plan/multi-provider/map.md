@@ -62,6 +62,14 @@ real bar, judged over real days.
   expectations untouched. **Count-based rows need no new template tokens and a raw count would
   mislead**, since `limit: 100` makes the percentage and the count the same number and the
   underlying unit is coarser than a turn. — [`03`](./tickets/03-generalise-usagecore.md)
+- Liveness is **`expires_at > now` in the credential file** — nothing else. The access token lives
+  **900 seconds** and kimi renews it **only once it has lapsed**, so the predicate means exactly
+  "kimi called the Kimi API in the last 15 minutes" *and* "the token still works" — one `stat`
+  (1.7 µs), the file decision 4 already reads, per-account as decision 7 requires. **Read
+  `expires_at`, never the file's mtime**: lazy refresh leaves the mtime untouched for up to 15
+  minutes of continuous work, so an mtime rule flaps mid-session. Process scan loses on evidence —
+  a TUI was found `S+` for 2d 6h with a token 21h dead — and `-p` runs last ~5s; session-file
+  mtime answers "did work happen", not "can we reach the API". — [`02`](./tickets/02-session-liveness.md)
 
 ## Not yet specified
 

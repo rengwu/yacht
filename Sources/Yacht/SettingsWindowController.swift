@@ -7,9 +7,9 @@ private final class InfoButton: NSButton {
     var helpText: String = ""
 }
 
-/// The settings window: register accounts, label them, install the tap, set
-/// the warn threshold. Pure projection + explicit actions; all facts (tap
-/// status, discovery) come from UsageCore.
+/// The settings window: register accounts, label them, install the Claude tap,
+/// set the warn threshold. Pure projection + explicit actions; all provider
+/// facts, tap status, and discovery come from UsageCore.
 final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, NSWindowDelegate {
 
     private unowned let app: AppDelegate
@@ -89,9 +89,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
             }
         }
 
-        let addButton = NSButton(
-            title: "Add Claude Config Folder…", target: self, action: #selector(addFolder)
-        )
+        let addButton = NSButton(title: "Add Account…", target: self, action: #selector(addAccount))
         stack.addArrangedSubview(addButton)
 
         stack.addArrangedSubview(separator())
@@ -143,27 +141,35 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         let path = dimmed(abbreviate(account.configDir))
         path.widthAnchor.constraint(equalToConstant: 120).isActive = true
 
-        let status = TapInstaller.detect(
-            configDir: account.configDir, tapCommand: AppDelegate.tapCommand
-        )
-        let statusText: NSTextField
+        let provider = dimmed(account.provider.displayName)
+        provider.widthAnchor.constraint(equalToConstant: 45).isActive = true
+
+        var views: [NSView] = [label, provider, path]
         var installButton: NSButton?
-        switch status {
-        case .installed:
-            statusText = dimmed("tap installed ✓")
-        case .notInstalled:
-            statusText = dimmed("tap not installed")
-            installButton = NSButton(title: "Install Tap", target: self, action: #selector(installTap(_:)))
-        case .foreign(let command):
-            statusText = dimmed("other status line: \(command)")
-            installButton = NSButton(title: "Replace with Tap", target: self, action: #selector(installTap(_:)))
+        if account.provider.usesTap {
+            let status = TapInstaller.detect(
+                configDir: account.configDir, tapCommand: AppDelegate.tapCommand
+            )
+            switch status {
+            case .installed:
+                views.append(dimmed("tap installed ✓"))
+            case .notInstalled:
+                views.append(dimmed("tap not installed"))
+                installButton = NSButton(
+                    title: "Install Tap", target: self, action: #selector(installTap(_:))
+                )
+            case .foreign(let command):
+                views.append(dimmed("other status line: \(command)"))
+                installButton = NSButton(
+                    title: "Replace with Tap", target: self, action: #selector(installTap(_:))
+                )
+            }
         }
 
         let remove = NSButton(title: "Remove", target: self, action: #selector(removeAccount(_:)))
         remove.identifier = NSUserInterfaceItemIdentifier(account.configDir.path)
         installButton?.identifier = NSUserInterfaceItemIdentifier(account.configDir.path)
 
-        var views: [NSView] = [label, path, statusText]
         if let installButton { views.append(installButton) }
         views.append(remove)
         return row(views)
@@ -429,25 +435,49 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
 
     @objc private func addDiscovered(_ sender: NSButton) {
         guard let path = sender.identifier?.rawValue else { return }
-        register(URL(fileURLWithPath: path))
+        register(URL(fileURLWithPath: path), provider: .claude)
     }
 
-    @objc private func addFolder() {
+    /// Provider selection is the first step. Only after the user continues do
+    /// we ask for that provider's account directory.
+    @objc private func addAccount() {
+        let providers = Provider.allCases
+        let picker = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 220, height: 26))
+        picker.addItems(withTitles: providers.map(\.displayName))
+
+        let alert = NSAlert()
+        alert.messageText = "Add Account"
+        alert.informativeText = "Choose the provider for this account."
+        alert.accessoryView = picker
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn,
+              providers.indices.contains(picker.indexOfSelectedItem)
+        else { return }
+
+        chooseFolder(for: providers[picker.indexOfSelectedItem])
+    }
+
+    private func chooseFolder(for provider: Provider) {
         let panel = NSOpenPanel()
+        panel.title = "Choose \(provider.configDirectoryLabel)"
+        panel.message = "Choose the \(provider.configDirectoryLabel.lowercased()) for this account."
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.showsHiddenFiles = true  // config dirs are dotfiles
         panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
         panel.prompt = "Register"
         if panel.runModal() == .OK, let url = panel.url {
-            register(url)
+            register(url, provider: provider)
         }
     }
 
-    private func register(_ dir: URL) {
+    private func register(_ dir: URL, provider: Provider) {
         var label = dir.lastPathComponent
         if label.hasPrefix(".") { label.removeFirst() }
-        app.update { $0.accounts.append(Account(label: label, configDir: dir)) }
+        app.update {
+            $0.accounts.append(Account(provider: provider, label: label, configDir: dir))
+        }
         reload()
     }
 

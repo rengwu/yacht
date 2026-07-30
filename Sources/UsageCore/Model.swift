@@ -1,14 +1,44 @@
 import Foundation
 
-/// An account is a (label, config directory) pair, and the config directory is
-/// its identity: it holds the auth session that defines the subscription, and
-/// that account's snapshot lives inside it. The shell alias that selects the
-/// account is incidental and unknown to this app.
+/// A source Yacht knows how to register. Provider selection is explicit: the
+/// presence of either provider's files on disk never creates an account.
+public enum Provider: String, CaseIterable, Codable {
+    case claude
+    case kimi
+
+    public var displayName: String {
+        switch self {
+        case .claude: return "Claude"
+        case .kimi: return "Kimi"
+        }
+    }
+
+    /// The noun the folder picker uses. `KIMI_CODE_HOME` is a home directory,
+    /// while Claude calls the same account boundary its config directory.
+    public var configDirectoryLabel: String {
+        switch self {
+        case .claude: return "Claude config folder"
+        case .kimi: return "Kimi Code home folder"
+        }
+    }
+
+    /// Tap installation belongs only to Claude's push adapter. Keeping that
+    /// fact here lets Settings project the provider instead of rediscovering
+    /// provider behaviour in AppKit.
+    public var usesTap: Bool { self == .claude }
+}
+
+/// An account is a (provider, label, config directory) tuple, and the config
+/// directory is its identity: it holds the auth session that defines the
+/// subscription, and that account's snapshot lives inside it. The shell alias
+/// that selects the account is incidental and unknown to this app.
 public struct Account: Equatable {
+    public let provider: Provider
     public let label: String
     public let configDir: URL
 
-    public init(label: String, configDir: URL) {
+    public init(provider: Provider = .claude, label: String, configDir: URL) {
+        self.provider = provider
         self.label = label
         self.configDir = configDir
     }

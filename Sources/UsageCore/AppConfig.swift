@@ -89,7 +89,11 @@ public struct AppConfig: Equatable, Codable {
     public mutating func relabel(configDir: URL, to label: String) {
         guard let i = accounts.firstIndex(where: { $0.configDir.isSameDirectory(as: configDir) })
         else { return }
-        accounts[i] = Account(label: label, configDir: accounts[i].configDir)
+        accounts[i] = Account(
+            provider: accounts[i].provider,
+            label: label,
+            configDir: accounts[i].configDir
+        )
     }
 
     public func account(configDir: URL) -> Account? {
@@ -104,11 +108,15 @@ extension URL {
 }
 
 extension Account: Codable {
-    enum CodingKeys: String, CodingKey { case label, configDir }
+    enum CodingKeys: String, CodingKey { case provider, label, configDir }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
+            // v0.1.4 and every earlier config predates providers. Those accounts
+            // were all Claude accounts, so absence is meaningful compatibility,
+            // not a malformed row.
+            provider: try c.decodeIfPresent(Provider.self, forKey: .provider) ?? .claude,
             label: try c.decode(String.self, forKey: .label),
             configDir: URL(fileURLWithPath: try c.decode(String.self, forKey: .configDir))
         )
@@ -116,6 +124,7 @@ extension Account: Codable {
 
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(provider, forKey: .provider)
         try c.encode(label, forKey: .label)
         try c.encode(configDir.path, forKey: .configDir)
     }

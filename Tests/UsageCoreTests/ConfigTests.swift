@@ -16,7 +16,11 @@ func runConfigTests(_ t: Harness) {
         let config = AppConfig(
             accounts: [
                 Account(label: "john", configDir: URL(fileURLWithPath: "/Users/x/.claude")),
-                Account(label: "jane", configDir: URL(fileURLWithPath: "/Users/x/.claude2")),
+                Account(
+                    provider: .kimi,
+                    label: "jane",
+                    configDir: URL(fileURLWithPath: "/Users/x/.kimi-code")
+                ),
             ],
             warnThreshold: 80,
             rowTemplate: "{name} {pct}",
@@ -44,6 +48,10 @@ func runConfigTests(_ t: Harness) {
         t.checkEqual(
             loaded.accounts, [Account(label: "john", configDir: URL(fileURLWithPath: "/Users/x/.claude"))],
             "config predating rowTemplate: accounts survive"
+        )
+        t.checkEqual(
+            loaded.accounts.map(\.provider), [.claude],
+            "…an account predating provider selection loads as Claude"
         )
         t.checkEqual(loaded.warnThreshold, 80, "…and the threshold it did set survives")
         t.checkEqual(
@@ -85,7 +93,11 @@ func runConfigTests(_ t: Harness) {
             loaded.accounts,
             [Account(label: "john", configDir: URL(fileURLWithPath: "/Users/x/.claude")),
              Account(label: "jane", configDir: URL(fileURLWithPath: "/Users/x/.claude2"))],
-            "v0.1.4 config: every account survives the N-row refactor, in order"
+            "v0.1.4 config: every account survives provider migration, in order"
+        )
+        t.checkEqual(
+            loaded.accounts.map(\.provider), [.claude, .claude],
+            "v0.1.4 config: every provider defaults to Claude"
         )
         t.checkEqual(loaded.warnThreshold, 80, "v0.1.4 config: threshold")
         t.checkEqual(loaded.rowTemplate, "{name}  {bar}  {pct}", "v0.1.4 config: row template")
@@ -111,7 +123,11 @@ func runConfigTests(_ t: Harness) {
 
     do {
         let john = Account(label: "john", configDir: URL(fileURLWithPath: "/Users/x/.claude"))
-        let sam = Account(label: "sam", configDir: URL(fileURLWithPath: "/Users/x/.claude2"))
+        let sam = Account(
+            provider: .kimi,
+            label: "sam",
+            configDir: URL(fileURLWithPath: "/Users/x/.kimi-code")
+        )
 
         // The sequence that corrupted a real config: Remove is clicked while the
         // account's label field is still being edited, and AppKit commits the edit
@@ -134,9 +150,13 @@ func runConfigTests(_ t: Harness) {
             config.accounts[1].configDir, sam.configDir,
             "…and renaming does not move the directory it is keyed on"
         )
+        t.checkEqual(
+            config.accounts[1].provider, .kimi,
+            "…and renaming preserves the account's provider"
+        )
 
         config = AppConfig(accounts: [john, sam])
-        config.remove(configDir: URL(fileURLWithPath: "/Users/x/.claude2/"))  // trailing slash
+        config.remove(configDir: URL(fileURLWithPath: "/Users/x/.kimi-code/"))  // trailing slash
         t.checkEqual(config.accounts, [john], "paths are compared standardized, not textually")
 
         config.remove(configDir: URL(fileURLWithPath: "/Users/x/.nothing"))
@@ -152,7 +172,7 @@ func runConfigTests(_ t: Harness) {
 
     do {
         let home = root.appendingPathComponent("home")
-        for dir in [".claude", ".claude2", ".config", "Documents"] {
+        for dir in [".claude", ".claude2", ".kimi-code", ".config", "Documents"] {
             try fm.createDirectory(
                 at: home.appendingPathComponent(dir), withIntermediateDirectories: true
             )
@@ -161,13 +181,21 @@ func runConfigTests(_ t: Harness) {
         t.checkEqual(
             Discovery.claudeConfigDirs(home: home).map(\.lastPathComponent),
             [".claude", ".claude2"],
-            "discovery finds .claude* directories, skips files and others"
+            "discovery finds .claude* directories but never auto-registers Kimi"
         )
         t.checkEqual(
             Discovery.claudeConfigDirs(home: root.appendingPathComponent("nowhere")),
             [], "unreadable home → nothing discovered"
         )
     } catch { t.check(false, "discovery fixture setup threw \(error)") }
+
+    // MARK: Provider facts projected by Settings
+
+    t.checkEqual(Provider.allCases, [.claude, .kimi], "provider picker lists both sources")
+    t.checkEqual(Provider.claude.displayName, "Claude", "Claude picker label")
+    t.checkEqual(Provider.kimi.displayName, "Kimi", "Kimi picker label")
+    t.check(Provider.claude.usesTap, "Claude account rows expose tap controls")
+    t.check(!Provider.kimi.usesTap, "Kimi account rows omit tap status and controls")
 
     // MARK: Tap deployment
 

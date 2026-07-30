@@ -3,7 +3,7 @@ import UsageCore
 
 /// Composition root and status item. Owns no display logic: it gathers inputs,
 /// calls UsageCore's render, and projects the resulting view model.
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     static let supportDir = FileManager.default
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -19,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private var timer: Timer?
     private var settingsController: SettingsWindowController?
+    /// One adaptive poller per explicitly registered Kimi account. Claude keeps
+    /// its independent snapshot reader; a failure here can therefore replace
+    /// only the corresponding Kimi state.
+    private var kimiPollers: [String: KimiUsagePoller] = [:]
 
     private(set) var config = ConfigStore.load(from: AppDelegate.configURL)
 
@@ -72,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Deploy the shared script and write the status line into this account's
     /// settings.json — only ever called from an explicit click.
     func installTap(for account: Account) throws {
+        guard account.provider.usesTap else { return }
         try TapDeployment.deploy(to: AppDelegate.supportDir)
         try TapInstaller.install(configDir: account.configDir, tapCommand: AppDelegate.tapCommand)
         refresh()
@@ -80,8 +85,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Render cycle
 
     @objc func refresh() {
-        let states = config.accounts.map {
-            AccountState.gather(account: $0, tapCommand: AppDelegate.tapCommand)
+        syncKimiPollers()
+        let states = config.accounts.map { account in
+            switch account.provider {
+            case .claude:
+                return AccountState.gather(
+                    account: account, tapCommand: AppDelegate.tapCommand
+                )
+            case .kimi:
+                let state = kimiPollers[accountKey(account)]?.state ?? .tokenExpired
+                return AccountState(account: account, kimi: state)
+            }
         }
         let vm = render(accounts: states, settings: config.settings, now: Date())
         statusItem.button?.attributedTitle = Style.statusTitle(vm.menuBar)
@@ -92,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func menu(for vm: ViewModel) -> NSMenu {
         let menu = NSMenu()
+        menu.delegate = self
 
         if let empty = vm.emptyState {
             menu.addItem(Style.menuLabel(empty, tone: .dimmed))
@@ -124,6 +139,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"
         ))
         return menu
+    }
+
+    /// Opening the dropdown is the one user-driven override to Kimi's adaptive
+    /// cadence. Each poller independently decides whether it can make a request.
+    func menuWillOpen(_ menu: NSMenu) {
+        kimiPollers.values.forEach { $0.dropdownOpened() }
+    }
+
+    private func syncKimiPollers() {
+        let kimiAccounts = config.accounts.filter { $0.provider == .kimi }
+        let desiredKeys = Set(kimiAccounts.map(accountKey))
+
+        for key in kimiPollers.keys.filter({ !desiredKeys.contains($0) }) {
+            kimiPollers.removeValue(forKey: key)?.stop()
+        }
+
+        for account in kimiAccounts {
+            let key = accountKey(account)
+            guard kimiPollers[key] == nil else { continue }
+            let poller = KimiUsagePoller(kimiCodeHome: account.configDir) { [weak self] _ in
+                self?.refresh()
+            }
+            kimiPollers[key] = poller
+            poller.start()
+        }
+    }
+
+    private func accountKey(_ account: Account) -> String {
+        account.configDir.standardizedFileURL.path
     }
 
     // MARK: - Settings window

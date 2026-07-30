@@ -282,7 +282,11 @@ func runKimiProviderTests(_ t: Harness) {
     }
 
     do {
-        let account = Account(label: "kimi", configDir: URL(fileURLWithPath: "/fixtures/kimi"))
+        let account = Account(
+            provider: .kimi,
+            label: "kimi",
+            configDir: URL(fileURLWithPath: "/fixtures/kimi")
+        )
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
 

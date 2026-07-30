@@ -2,6 +2,8 @@
 type: task
 blocked_by: [01, 02, 03]
 assets: [.plan/multi-provider/assets/kimi-usages-fixture.json]
+claimed_by: s91b64fb038ed
+claimed_at: 2026-07-30T17:00:55Z
 ---
 
 # Build the Kimi provider: credentials, poller, cadence, error states

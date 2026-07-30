@@ -1,6 +1,8 @@
 ---
 type: task
 blocked_by: [03]
+claimed_by: s7df0a44c0624
+claimed_at: 2026-07-30T17:43:41Z
 ---
 
 # Settings: provider picker and Kimi account registration

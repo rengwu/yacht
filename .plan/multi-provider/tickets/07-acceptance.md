@@ -1,6 +1,8 @@
 ---
 type: task
 blocked_by: [04, 05, 06]
+claimed_by: s001c264b975f
+claimed_at: 2026-07-30T18:36:34Z
 ---
 
 # Acceptance: both providers in the real bar, on real use

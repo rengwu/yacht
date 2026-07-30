@@ -1,8 +1,9 @@
-# ⛵️ Yacht (yet another claude headroom tracker)
+# ⛵️ Yacht
 
 <img src="https://i.imgur.com/OHvWTz8.png" style="width: 400px" />
 
-A macOS menu bar app that shows Claude Code rate-limit usage. Multiaccount-friendly.
+A macOS menu bar app that shows rate-limit usage for coding agents.
+Multi-account friendly.
 
 [![Download for macOS](https://img.shields.io/badge/Download-macOS-blue?style=for-the-badge)](https://github.com/rengwu/yacht/releases/latest/download/Yacht.dmg)
 
@@ -73,15 +74,15 @@ automatically. For convenience, alias it in `~/.zshrc`:
 alias claude-work="CLAUDE_CONFIG_DIR=~/.claude-work claude"
 ```
 
-## How it works
+## How Claude usage collection works
 
-Claude Code can run a `statusLine` command on every turn. This app installs a
-small script (the "tap") as that command for each account you register. The
-tap reads the status line's JSON payload from stdin and, whenever it carries
-`rate_limits`, writes a snapshot to `usage-snapshot.json` inside that
-account's Claude config directory. The app polls those snapshot files and
-renders them in the menu bar and dropdown — it never talks to any network
-itself.
+For Claude Code, Yacht installs a small script (the "tap") as the `statusLine`
+command for each account you register. Claude Code can run that command on
+every turn. The tap reads the status line's JSON payload from stdin and,
+whenever it carries `rate_limits`, writes a snapshot to `usage-snapshot.json`
+inside that account's Claude config directory. The app polls those snapshot
+files and renders them in the menu bar and dropdown. This Claude adapter never
+talks to the network.
 
 The tap is deliberately inert: it prints nothing (so it never appears as a
 visible status line), always exits `0`, and writes atomically, so it can
@@ -104,8 +105,9 @@ Project layout:
 - `Sources/Yacht` — the app: status item, settings window, launch-at-login.
   A thin projection of `UsageCore`'s view model.
 - `Tests/UsageCoreTests` — the test suite.
-- `tap/claude-usage-tap.sh` — the tap script, kept in sync with the copy
-  embedded in `UsageCore` (test-enforced).
+- `tap/claude-usage-tap.sh` — the Claude tap script, kept in sync with the copy
+  embedded in `UsageCore` (test-enforced). Its legacy filename is intentionally
+  stable because existing `statusLine` settings contain its absolute path.
 
 ## Releasing
 

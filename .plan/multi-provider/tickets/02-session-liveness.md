@@ -1,6 +1,8 @@
 ---
 type: task
 blocked_by: []
+claimed_by: s15b7d3f90b15
+claimed_at: 2026-07-30T16:36:04Z
 ---
 
 # Find a reliable signal that a kimi session is live

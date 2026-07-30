@@ -38,11 +38,13 @@ public struct AccountView: Equatable {
     public let label: String
     public let windows: [WindowView]  // one per reported row, in the provider's order
     public let note: String?          // why data is absent/frozen, when it is
+    public let noteTone: Tone         // routine absence is dimmed; faults warn
 
-    public init(label: String, windows: [WindowView], note: String?) {
+    public init(label: String, windows: [WindowView], note: String?, noteTone: Tone = .warn) {
         self.label = label
         self.windows = windows
         self.note = note
+        self.noteTone = noteTone
     }
 }
 
@@ -147,9 +149,13 @@ private func menuBarSegment(
 private func accountView(
     _ state: AccountState, settings: AppSettings, now: Date, calendar: Calendar
 ) -> AccountView {
+    let note = providerNote(state.sourceState, hasSnapshot: state.snapshot != nil)
     guard let snapshot = state.snapshot else {
         return AccountView(
-            label: state.account.label, windows: [], note: absenceNote(state.tapStatus)
+            label: state.account.label,
+            windows: [],
+            note: note?.text,
+            noteTone: note?.tone ?? .warn
         )
     }
     return AccountView(
@@ -159,7 +165,8 @@ private func accountView(
         windows: snapshot.rows.map {
             windowView($0, settings: settings, now: now, calendar: calendar)
         },
-        note: state.tapStatus == .installed ? nil : absenceNote(state.tapStatus)
+        note: note?.text,
+        noteTone: note?.tone ?? .warn
     )
 }
 
@@ -201,14 +208,24 @@ private func tone(_ percentage: Double, _ settings: AppSettings) -> Tone {
 }
 
 /// Why an account shows no (or frozen) data — a dash must never go unexplained.
-private func absenceNote(_ status: TapStatus) -> String {
-    switch status {
-    case .installed:
-        return "waiting for a session — run Claude Code as this account"
-    case .notInstalled:
-        return "tap not installed — install it from Settings"
-    case .foreign:
-        return "another status line is configured — see Settings"
+/// Kimi token expiry is its normal resting state under the read-only credential
+/// boundary, so it is explanatory/dimmed rather than presented as a fault.
+private func providerNote(_ state: AccountSourceState, hasSnapshot: Bool) -> StyledText? {
+    switch state {
+    case .claude(.installed) where hasSnapshot:
+        return nil
+    case .claude(.installed):
+        return StyledText("waiting for a session — run Claude Code as this account", .warn)
+    case .claude(.notInstalled):
+        return StyledText("tap not installed — install it from Settings", .warn)
+    case .claude(.foreign):
+        return StyledText("another status line is configured — see Settings", .warn)
+    case .kimi(.available):
+        return nil
+    case .kimi(.tokenExpired):
+        return StyledText("token expired — run kimi to refresh", .dimmed)
+    case .kimi(.unreachable):
+        return StyledText("couldn't reach Kimi", .warn)
     }
 }
 

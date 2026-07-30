@@ -181,12 +181,30 @@ public struct AppSettings: Equatable {
 public struct AccountState: Equatable {
     public let account: Account
     public let snapshot: Snapshot?
-    public let tapStatus: TapStatus
+    public let sourceState: AccountSourceState
 
     public init(account: Account, snapshot: Snapshot?, tapStatus: TapStatus) {
         self.account = account
         self.snapshot = snapshot
-        self.tapStatus = tapStatus
+        self.sourceState = .claude(tapStatus)
+    }
+
+    /// The Kimi adapter owns both the snapshot and the reason one is absent, so
+    /// callers cannot accidentally keep rendering a stale Kimi snapshot after a
+    /// credential or network failure.
+    public init(account: Account, kimi state: KimiProviderState) {
+        self.account = account
+        switch state {
+        case .snapshot(let snapshot):
+            self.snapshot = snapshot
+            self.sourceState = .kimi(.available)
+        case .tokenExpired:
+            self.snapshot = nil
+            self.sourceState = .kimi(.tokenExpired)
+        case .unreachable:
+            self.snapshot = nil
+            self.sourceState = .kimi(.unreachable)
+        }
     }
 
     /// Impure gatherer for the composition root: reads the snapshot and detects
@@ -198,4 +216,18 @@ public struct AccountState: Equatable {
             tapStatus: TapInstaller.detect(configDir: account.configDir, tapCommand: tapCommand)
         )
     }
+}
+
+/// Runtime state for an account's provider adapter. This is deliberately not
+/// the persisted provider selection — account registration owns that concern.
+/// It is only what the pure renderer needs to explain absent data.
+public enum AccountSourceState: Equatable {
+    case claude(TapStatus)
+    case kimi(KimiAvailability)
+}
+
+public enum KimiAvailability: Equatable {
+    case available
+    case tokenExpired
+    case unreachable
 }

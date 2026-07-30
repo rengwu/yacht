@@ -104,7 +104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 ))
             }
             if let note = account.note {
-                menu.addItem(Style.menuLabel(note, tone: .warn, indent: true))
+                menu.addItem(Style.menuLabel(note, tone: account.noteTone, indent: true))
             }
             menu.addItem(.separator())
         }

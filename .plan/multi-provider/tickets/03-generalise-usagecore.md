@@ -1,6 +1,8 @@
 ---
 type: task
 blocked_by: []
+claimed_by: s8b128be56303
+claimed_at: 2026-07-30T05:47:06Z
 ---
 
 # Generalise UsageCore from two fixed windows to N rows

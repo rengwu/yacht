@@ -15,6 +15,44 @@ import Foundation
 // and `label` is persisted alongside `window` because an adapter is allowed to
 // override it, so re-deriving it on read would quietly relabel those rows.
 
+// `UsageWindow` was `String`-backed when this cache was introduced, and its raw
+// values are what the files already on disk contain. `other(minutes:)` has no
+// raw value, so the conformance is written out by hand — preserving those two
+// spellings exactly, and giving the unnamed window one of its own. A window this
+// build does not understand fails the decode rather than being guessed at; the
+// cache treats that the same as any other unreadable file (a dash until the next
+// poll), which is the honest outcome for a row whose identity is unknown.
+
+extension UsageWindow: Codable {
+    private static let otherPrefix = "other_"
+
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        switch raw {
+        case "five_hour": self = .fiveHour
+        case "weekly": self = .weekly
+        default:
+            guard raw.hasPrefix(Self.otherPrefix),
+                  let minutes = Int(raw.dropFirst(Self.otherPrefix.count))
+            else {
+                throw DecodingError.dataCorrupted(
+                    .init(codingPath: decoder.codingPath, debugDescription: "unknown window \(raw)")
+                )
+            }
+            self = .other(minutes: minutes)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case .fiveHour: try c.encode("five_hour")
+        case .weekly: try c.encode("weekly")
+        case .other(let minutes): try c.encode("\(Self.otherPrefix)\(minutes)")
+        }
+    }
+}
+
 extension UsageRow: Codable {
     enum CodingKeys: String, CodingKey {
         case window, label, used, limit
@@ -44,15 +82,20 @@ extension UsageRow: Codable {
 
 extension Snapshot: Codable {
     enum CodingKeys: String, CodingKey {
-        case rows
+        case rows, primary
         case updatedAt = "updated_at"
     }
 
+    /// `primary` is optional on read: every file written before the bar keyed on
+    /// it lacks the key, and every one of those was a Claude or Kimi snapshot,
+    /// whose primary is the default anyway. So an old cache loads and renders
+    /// identically rather than being discarded.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
             rows: try c.decode([UsageRow].self, forKey: .rows),
-            updatedAt: Date(timeIntervalSince1970: try c.decode(Double.self, forKey: .updatedAt))
+            updatedAt: Date(timeIntervalSince1970: try c.decode(Double.self, forKey: .updatedAt)),
+            primary: try c.decodeIfPresent(UsageWindow.self, forKey: .primary) ?? .fiveHour
         )
     }
 
@@ -60,6 +103,7 @@ extension Snapshot: Codable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(rows, forKey: .rows)
         try c.encode(updatedAt.timeIntervalSince1970, forKey: .updatedAt)
+        try c.encode(primary, forKey: .primary)
     }
 }
 

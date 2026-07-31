@@ -89,10 +89,13 @@ public enum KimiUsageParser {
             row($0.detail, window: .fiveHour)
         }
 
-        // 5-hour first, weekly second: the dropdown's significance order.
+        // 5-hour first, weekly second: the dropdown's significance order. Kimi
+        // sends no equivalent of Codex's `primary`, so this adapter declares it
+        // — the 5-hour window, unchanged from what the bar has always shown.
         return Snapshot(
             rows: [fiveHour, weekly].compactMap { $0 },
-            updatedAt: capturedAt
+            updatedAt: capturedAt,
+            primary: .fiveHour
         )
     }
 

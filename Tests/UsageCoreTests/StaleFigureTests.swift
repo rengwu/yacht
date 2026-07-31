@@ -110,15 +110,37 @@ func runStaleFigureTests(_ t: Harness) {
         "render: a failed poll still warns, even with a figure on screen"
     )
 
-    // The trade-off decision 2 of the ticket records, pinned so a later change
-    // to it is deliberate: staleness takes the colour channel from the fill.
+    // Decision 2 of the ticket accepted losing the colour channel to dimming, on
+    // the premise that the bar's primary sits near zero — false for a provider
+    // whose primary is a weekly window, and the ticket named the carve-out as the
+    // remedy in advance. Taken in `.plan/codex-provider/tickets/01`: warn and
+    // critical beat dimmed, so staleness never mutes the alarm. Below the warn
+    // threshold there is no alarm to mute and dimming is unchanged — which is
+    // every assertion above this one.
     let hot = view(
         .stale(snapshot(fiveHour: 95, weekly: 99), reason: .tokenExpired),
         now: twelveMinutesLater
     )
     t.checkEqual(
-        hot.menuBar[2], StyledText("kimi 95%", .dimmed),
-        "render: a stale figure is dimmed even over the critical threshold"
+        hot.menuBar[2], StyledText("kimi 95%", .critical),
+        "render: a stale figure over the critical threshold keeps its alarm colour"
+    )
+    let warm = view(
+        .stale(snapshot(fiveHour: 75, weekly: 99), reason: .unreachable),
+        now: twelveMinutesLater
+    )
+    t.checkEqual(
+        warm.menuBar[2], StyledText("kimi 75%", .warn),
+        "render: exactly at the warn threshold, warn wins over dimmed too"
+    )
+    let cool = view(
+        .stale(snapshot(fiveHour: 74.9, weekly: 99), reason: .tokenExpired),
+        now: twelveMinutesLater
+    )
+    t.checkEqual(
+        cool.menuBar[2], StyledText("kimi 75%", .dimmed),
+        "render: a hair below warn, a stale figure still dims — the carve-out is"
+            + " the alarm, not an exemption from staleness"
     )
 
     // Age wording across the units the note can reach.

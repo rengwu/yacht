@@ -108,41 +108,47 @@ public func render(
     )
 }
 
-// The bar's two figures are hardcoded to the same two windows for every
-// provider: `{pct}` is the 5-hour window and `{pct_7d}` the weekly one. Not a
-// user setting, and not "whichever row is worst" — the 5-hour window is the one
-// that actually binds during a session, and a bar whose meaning moved with the
-// numbers could not be read at a glance. A per-provider picker was designed and
-// dropped once the live payloads showed both providers have exactly these two
-// windows and nothing else; the N-row model stays for a third provider, whose
-// extra rows would appear in the dropdown and leave the bar alone.
-private let barWindow = UsageWindow.fiveHour
-private let barSecondaryWindow = UsageWindow.weekly
+// The bar's figure is the row the *provider* calls primary — `{pct}` — and
+// `{pct_7d}` is whatever other window it reported. Not a user setting, and not
+// "whichever row is worst": a bar whose meaning moved with the numbers could not
+// be read at a glance, so the meaning is fixed per provider and each adapter
+// declares it once (`Snapshot.primary`). This replaces a pair of hardcoded
+// windows justified by both providers having exactly these two and nothing else
+// — a premise Codex falsifies by reporting one window, the weekly, which under
+// the old rule would have rendered a Codex account as no data forever.
 
 private func menuBarSegment(
     _ state: AccountState, settings: AppSettings, now: Date, calendar: Calendar
 ) -> StyledText {
     let label = state.account.label
-    guard let five = state.snapshot?.row(barWindow) else {
+    guard let primary = state.snapshot?.primaryRow else {
         return StyledText(Format.menuBarText(settings.menuBarNoDataTemplate, name: label), .dimmed)
     }
-    let p = effectivePercentage(five, now: now)
-    let weekly = state.snapshot?.row(barSecondaryWindow).map { effectivePercentage($0, now: now) }
+    let p = effectivePercentage(primary, now: now)
+    let secondary = state.snapshot?.secondaryRow.map { effectivePercentage($0, now: now) }
     return StyledText(
         Format.row(
             settings.menuBarTemplate, name: label, percentage: p,
-            resetsAt: five.resetsAt, now: now, calendar: calendar, padPercent: false,
-            secondaryPercentage: weekly
+            resetsAt: primary.resetsAt, now: now, calendar: calendar, padPercent: false,
+            secondaryPercentage: secondary
         ),
-        // A carried-forward figure is dimmed rather than marked in the text: the
-        // bar has no width to spare, and the resting state of a Kimi account is
-        // stale, so a glyph would be on screen almost always and stop reading as
-        // a warning at all. Chosen knowing it costs the fill colour — a stale
-        // figure over the warn threshold renders dimmed, not amber. The primary
-        // is the 5-hour window, which is where that is least likely to matter; if
-        // it ever does, the fix is to let warn/critical win here, not to redesign.
-        isStale(state.sourceState) ? .dimmed : tone(p, settings)
+        barTone(p, settings: settings, stale: isStale(state.sourceState))
     )
+}
+
+/// A carried-forward figure is dimmed rather than marked in the text: the bar has
+/// no width to spare, and the resting state of a Kimi account is stale, so a
+/// glyph would be on screen almost always and stop reading as a warning at all.
+///
+/// Warn and critical beat that dimming. Dimming was chosen knowing it costs the
+/// fill colour, on the premise that the bar's primary is the 5-hour window, which
+/// sits near zero — false for a provider whose primary is a weekly window, which
+/// by construction climbs toward 100%. Staleness must not mute the alarm at the
+/// exact moment it matters most, so it only takes the colour channel when there
+/// is no alarm to take: below the warn threshold, stale still dims.
+private func barTone(_ percentage: Double, settings: AppSettings, stale: Bool) -> Tone {
+    let live = tone(percentage, settings)
+    return stale && live == .normal ? .dimmed : live
 }
 
 private func isStale(_ state: AccountSourceState) -> Bool {
@@ -273,7 +279,7 @@ enum Format {
     /// one inline status-item segment isn't one.
     ///
     /// `secondaryPercentage` backs `{pct_7d}` — the menu bar's own row is built
-    /// from the 5-hour window alone, so a 7-day figure has nowhere else to come
+    /// from the primary window alone, so a second figure has nowhere else to come
     /// from. `nil` (no such window, or no caller that has one — the dropdown's
     /// row calls never pass one) renders as "—", not a blank or an error.
     static func row(

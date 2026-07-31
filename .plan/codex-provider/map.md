@@ -64,7 +64,13 @@ judged over real days.
 
 <!-- one line per resolved ticket: gist + link. -->
 
-_None yet — the design is settled in [`spec.md`](./spec.md); these tickets execute it._
+The design is settled in [`spec.md`](./spec.md); these tickets execute it. What landed:
+
+- **The bar reads `Snapshot.primary`**, a `UsageWindow` each adapter declares — Claude and Kimi say
+  5-hour, a Codex adapter takes it from the wire. `{pct_7d}` is the first reported row that is not
+  the primary, `—` when there is none. `UsageWindow` gained `other(minutes:)` and hand-written
+  `Codable`; stale figures at or above warn keep their tone.
+  ([01](./tickets/01-primary-window-rule.md))
 
 ## Not yet specified
 

@@ -40,9 +40,13 @@ public enum SnapshotReader {
         }
 
         // 5-hour first, weekly second: the order the dropdown lists them in.
+        // Claude sends nothing that says which window binds, so this adapter
+        // declares it — the 5-hour one, which is what actually binds during a
+        // session and what the bar has always shown.
         return Snapshot(
             rows: [row("five_hour", .fiveHour), row("seven_day", .weekly)].compactMap { $0 },
-            updatedAt: Date(timeIntervalSince1970: updated)
+            updatedAt: Date(timeIntervalSince1970: updated),
+            primary: .fiveHour
         )
     }
 

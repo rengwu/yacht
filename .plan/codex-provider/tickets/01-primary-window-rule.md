@@ -2,6 +2,8 @@
 type: task
 blocked_by: []
 assets: [.plan/codex-provider/spec.md]
+claimed_by: s2364dfca532d
+claimed_at: 2026-07-31T16:55:56Z
 ---
 
 # Bar keys on the provider's primary window

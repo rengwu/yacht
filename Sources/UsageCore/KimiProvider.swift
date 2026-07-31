@@ -161,8 +161,19 @@ public enum KimiUsageParser {
 
 // MARK: - Pure poll state machine
 
+/// Why a carried-forward figure is not being refreshed. `tokenExpired` is the
+/// resting state, not a fault: the access token lives 900s and kimi renews it
+/// only lazily, so any account that is not mid-turn is here.
+public enum KimiStaleReason: Equatable {
+    case tokenExpired
+    case unreachable
+}
+
 public enum KimiProviderState: Equatable {
     case snapshot(Snapshot)
+    /// The last figure that *was* fetched, still on display because usage only
+    /// accrues while kimi runs — which is exactly when it can be re-polled.
+    case stale(Snapshot, reason: KimiStaleReason)
     case tokenExpired
     case unreachable
 }
@@ -185,6 +196,28 @@ public enum KimiResponseStateMachine {
             return .tokenExpired
         case .response, .timeout, .networkFailure:
             return .unreachable
+        }
+    }
+
+    /// Second, separate step: `reduce` judges one response in isolation, and this
+    /// decides what the *account* shows given what was last known. Kept pure and
+    /// apart so the poller holds no display rule of its own, and so "an outcome
+    /// with no figure yet" and "the same outcome over a figure" are one decision
+    /// in one place.
+    ///
+    /// A fresh snapshot always wins and always replaces `lastKnown`; the caller
+    /// reads the new figure back out of the returned state rather than tracking
+    /// it separately.
+    public static func carryForward(
+        _ outcome: KimiProviderState, lastKnown: Snapshot?
+    ) -> KimiProviderState {
+        switch outcome {
+        case .snapshot, .stale:
+            return outcome
+        case .tokenExpired:
+            return lastKnown.map { .stale($0, reason: .tokenExpired) } ?? .tokenExpired
+        case .unreachable:
+            return lastKnown.map { .stale($0, reason: .unreachable) } ?? .unreachable
         }
     }
 }
@@ -311,18 +344,29 @@ public final class KimiUsagePoller {
     private var timer: DispatchSourceTimer?
     private var requestInFlight = false
     private var hasPublishedState = false
+    /// The last figure a poll actually returned, and the whole of what survives a
+    /// failure. Reading it back off `state` would lose it the moment the state
+    /// became one of the figure-less cases, which is precisely when it is needed.
+    private var lastKnown: Snapshot?
 
-    public private(set) var state: KimiProviderState = .tokenExpired
+    public private(set) var state: KimiProviderState
 
+    /// `lastKnown` seeds the account's figure from whatever the composition root
+    /// cached on a previous run, so a relaunch shows the same number the bar was
+    /// showing when it quit rather than blanking until kimi is next used. Disk
+    /// stays out of this type: the caller reads the cache, and writes it back
+    /// from `stateHandler` when a fresh snapshot arrives.
     public convenience init(
         kimiCodeHome: URL,
         transport: KimiUsageTransport = URLSessionKimiUsageTransport(),
+        lastKnown: Snapshot? = nil,
         stateHandler: @escaping StateHandler
     ) {
         self.init(
             credentialLoader: { KimiCredentialStore.read(kimiCodeHome: kimiCodeHome) },
             transport: transport,
             now: Date.init,
+            lastKnown: lastKnown,
             stateHandler: stateHandler
         )
     }
@@ -331,12 +375,15 @@ public final class KimiUsagePoller {
         credentialLoader: @escaping () -> KimiCredential?,
         transport: KimiUsageTransport,
         now: @escaping () -> Date,
+        lastKnown: Snapshot? = nil,
         stateHandler: @escaping StateHandler
     ) {
         self.credentialLoader = credentialLoader
         self.transport = transport
         self.now = now
+        self.lastKnown = lastKnown
         self.stateHandler = stateHandler
+        self.state = KimiResponseStateMachine.carryForward(.tokenExpired, lastKnown: lastKnown)
     }
 
     deinit {
@@ -392,7 +439,9 @@ public final class KimiUsagePoller {
         }
     }
 
-    private func publish(_ newState: KimiProviderState) {
+    private func publish(_ outcome: KimiProviderState) {
+        if case .snapshot(let snapshot) = outcome { lastKnown = snapshot }
+        let newState = KimiResponseStateMachine.carryForward(outcome, lastKnown: lastKnown)
         guard !hasPublishedState || state != newState else { return }
         state = newState
         hasPublishedState = true

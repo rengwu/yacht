@@ -51,8 +51,11 @@ public struct Account: Equatable {
 /// and the other by being the top-level `usage` object with no window at all.
 /// Each adapter therefore maps its own shape onto these cases, and the label is
 /// derived from there — never read off the wire.
-public enum UsageWindow: Equatable {
-    case fiveHour
+///
+/// The raw value exists only so a cached snapshot can name its rows on disk; it
+/// is never read off either provider's wire, and it is never the display label.
+public enum UsageWindow: String, Equatable, Codable {
+    case fiveHour = "five_hour"
     case weekly
 
     /// The dropdown's `{name}`, shared so providers agree by default.
@@ -219,15 +222,18 @@ public struct AccountState: Equatable {
         self.sourceState = .claude(tapStatus)
     }
 
-    /// The Kimi adapter owns both the snapshot and the reason one is absent, so
-    /// callers cannot accidentally keep rendering a stale Kimi snapshot after a
-    /// credential or network failure.
+    /// The Kimi adapter owns both the snapshot and its standing, so a stale
+    /// figure can never reach the display without the mark that says so — the
+    /// two travel together or not at all.
     public init(account: Account, kimi state: KimiProviderState) {
         self.account = account
         switch state {
         case .snapshot(let snapshot):
             self.snapshot = snapshot
             self.sourceState = .kimi(.available)
+        case .stale(let snapshot, let reason):
+            self.snapshot = snapshot
+            self.sourceState = .kimi(.stale(reason))
         case .tokenExpired:
             self.snapshot = nil
             self.sourceState = .kimi(.tokenExpired)
@@ -256,8 +262,13 @@ public enum AccountSourceState: Equatable {
     case kimi(KimiAvailability)
 }
 
+/// `tokenExpired` and `unreachable` mean *no figure at all* — no poll has ever
+/// succeeded for this account. Once one has, the same two conditions read as
+/// `.stale` instead, carrying the reason so the note can distinguish "kimi
+/// simply hasn't run" from "the last attempt failed".
 public enum KimiAvailability: Equatable {
     case available
+    case stale(KimiStaleReason)
     case tokenExpired
     case unreachable
 }

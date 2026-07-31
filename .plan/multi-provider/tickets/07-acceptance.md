@@ -97,5 +97,13 @@ first use — the first fog patch's concern, not yet evidence either way.
   clause-3 state after under two hours of not using kimi — not several days. Whether it *reads*
   as routine is still the human's judgement in the bar.
 
+**Clause 3 has been overtaken by [`08`](./08-stale-kimi-figures.md).** The first thing real use
+showed was that the expired-token state is not occasional but the *resting* state — the token
+lives 900s and kimi renews it only lazily, so Kimi's figure was on screen roughly only while kimi
+was running. `08` carries the last successful poll forward, dimmed, rather than blanking. Judge
+clause 3 on that behaviour: the question is no longer "does the dash read as routine" but "does a
+dimmed figure with `last fetched 3d 4h ago` read as trustworthy-but-idle". The blanking state
+still exists and still needs judging, but only for an account that has never polled successfully.
+
 Left for the run itself: clauses 1, 2 and 3 in full, the by-eye halves of 4 and 5, and the verdict
 on decisions 5 and 11.

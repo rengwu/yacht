@@ -9,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("Yacht")
     static let configURL = supportDir.appendingPathComponent("config.json")
+    /// Kimi's last-known figures, so a relaunch shows what the bar was showing
+    /// when it quit. Yacht's own directory — never anything under KIMI_CODE_HOME.
+    static let kimiCacheURL = supportDir.appendingPathComponent("kimi-cache.json")
     /// The command the installer writes; detection compares against it whether
     /// or not the script has been deployed yet. Shell-quoted, because Claude Code
     /// runs the statusLine value through a shell and the deploy path has a space.
@@ -155,10 +158,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             kimiPollers.removeValue(forKey: key)?.stop()
         }
 
+        // Read once per sync rather than per account: the file holds every
+        // account's entry, and a sync that creates no poller reads nothing.
+        lazy var cached = KimiSnapshotCache.load(from: AppDelegate.kimiCacheURL)
+
         for account in kimiAccounts {
             let key = accountKey(account)
             guard kimiPollers[key] == nil else { continue }
-            let poller = KimiUsagePoller(kimiCodeHome: account.configDir) { [weak self] _ in
+            let poller = KimiUsagePoller(
+                kimiCodeHome: account.configDir,
+                lastKnown: KimiSnapshotCache.snapshot(configDir: account.configDir, in: cached)
+            ) { [weak self] state in
+                // Cache only what a poll actually returned. A carried-forward
+                // figure is already in the file; rewriting it on every failure
+                // would be a disk write per minute per account for no new fact.
+                if case .snapshot(let snapshot) = state {
+                    try? KimiSnapshotCache.store(
+                        snapshot, configDir: account.configDir, at: AppDelegate.kimiCacheURL
+                    )
+                }
                 self?.refresh()
             }
             kimiPollers[key] = poller

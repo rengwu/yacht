@@ -134,8 +134,20 @@ private func menuBarSegment(
             resetsAt: five.resetsAt, now: now, calendar: calendar, padPercent: false,
             secondaryPercentage: weekly
         ),
-        tone(p, settings)
+        // A carried-forward figure is dimmed rather than marked in the text: the
+        // bar has no width to spare, and the resting state of a Kimi account is
+        // stale, so a glyph would be on screen almost always and stop reading as
+        // a warning at all. Chosen knowing it costs the fill colour — a stale
+        // figure over the warn threshold renders dimmed, not amber. The primary
+        // is the 5-hour window, which is where that is least likely to matter; if
+        // it ever does, the fix is to let warn/critical win here, not to redesign.
+        isStale(state.sourceState) ? .dimmed : tone(p, settings)
     )
+}
+
+private func isStale(_ state: AccountSourceState) -> Bool {
+    if case .kimi(.stale) = state { return true }
+    return false
 }
 
 /// No "updated Nm ago" line, deliberately. A figure that renders at all belongs
@@ -146,10 +158,19 @@ private func menuBarSegment(
 /// where it *is* a lower bound (the account spent tokens somewhere the tap cannot
 /// see — the web app, another machine, a broken tap) is invisible to a clock. What
 /// can be known about the pipeline is stated instead, as a note.
+///
+/// Kimi's stale note is that same rule, not an exception to it: it reports the
+/// state of the *pipeline* — that no poll has run since some time — which is a
+/// fact about the connection, not doubt cast on the figure. It carries an age
+/// only because, unlike a tap that rewrites on every turn, a poll that cannot
+/// run has a duration, and how long it has not run is the whole of what the
+/// reader needs to size their trust.
 private func accountView(
     _ state: AccountState, settings: AppSettings, now: Date, calendar: Calendar
 ) -> AccountView {
-    let note = providerNote(state.sourceState, hasSnapshot: state.snapshot != nil)
+    let note = providerNote(
+        state.sourceState, hasSnapshot: state.snapshot != nil, snapshot: state.snapshot, now: now
+    )
     guard let snapshot = state.snapshot else {
         return AccountView(
             label: state.account.label,
@@ -207,10 +228,13 @@ private func tone(_ percentage: Double, _ settings: AppSettings) -> Tone {
     return .normal
 }
 
-/// Why an account shows no (or frozen) data — a dash must never go unexplained.
-/// Kimi token expiry is its normal resting state under the read-only credential
-/// boundary, so it is explanatory/dimmed rather than presented as a fault.
-private func providerNote(_ state: AccountSourceState, hasSnapshot: Bool) -> StyledText? {
+/// Why an account shows no (or frozen) data — a dash must never go unexplained,
+/// and neither must a figure that is not being refreshed. Kimi token expiry is
+/// its normal resting state under the read-only credential boundary, so it is
+/// explanatory/dimmed rather than presented as a fault; a failed poll warns.
+private func providerNote(
+    _ state: AccountSourceState, hasSnapshot: Bool, snapshot: Snapshot?, now: Date
+) -> StyledText? {
     switch state {
     case .claude(.installed) where hasSnapshot:
         return nil
@@ -222,6 +246,17 @@ private func providerNote(_ state: AccountSourceState, hasSnapshot: Bool) -> Sty
         return StyledText("another status line is configured — see Settings", .warn)
     case .kimi(.available):
         return nil
+    case .kimi(.stale(let reason)):
+        // The age is relative on purpose. A wall clock ("Tue 2:46am") states when
+        // and leaves the reader to do the subtraction that actually matters; "3d
+        // ago" is the doubt itself, at a glance.
+        let age = snapshot.map { Format.age(of: $0.updatedAt, at: now) } ?? "a while"
+        switch reason {
+        case .tokenExpired:
+            return StyledText("last fetched \(age) — kimi hasn't run since", .dimmed)
+        case .unreachable:
+            return StyledText("last fetched \(age) — couldn't reach Kimi since", .warn)
+        }
     case .kimi(.tokenExpired):
         return StyledText("token expired — run kimi to refresh", .dimmed)
     case .kimi(.unreachable):
@@ -312,6 +347,22 @@ enum Format {
         let filled = min(width, max(0, Int((percentage / 100 * Double(width)).rounded())))
         return String(repeating: "▓", count: filled)
             + String(repeating: "░", count: width - filled)
+    }
+
+    /// How long ago a moment was, coarsened the same way `countdown` coarsens how
+    /// long until one. Floors at "moments ago" rather than "0m": a snapshot
+    /// fetched seconds ago is not stale by any amount worth a number, and a clock
+    /// that has drifted the capture time slightly into the future must not read
+    /// as a negative age.
+    static func age(of date: Date, at now: Date) -> String {
+        let total = Int(now.timeIntervalSince(date))
+        guard total >= 60 else { return "moments ago" }
+        let days = total / 86400
+        let hours = (total % 86400) / 3600
+        let minutes = (total % 3600) / 60
+        if days > 0 { return "\(days)d \(hours)h ago" }
+        if hours > 0 { return "\(hours)h \(minutes)m ago" }
+        return "\(minutes)m ago"
     }
 
     /// Same reasoning as `clock`: a non-positive interval means the moment has

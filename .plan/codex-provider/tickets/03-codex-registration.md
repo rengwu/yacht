@@ -1,6 +1,8 @@
 ---
 type: task
 blocked_by: [02]
+claimed_by: s5cc1648a02ae
+claimed_at: 2026-07-31T18:28:02Z
 ---
 
 # Settings: register a Codex account

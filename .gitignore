@@ -3,3 +3,6 @@ build/
 .build/
 .pocock-skills/
 ./
+.chartr/
+.wayfinder-harness/
+.wayfinder-harness.toml

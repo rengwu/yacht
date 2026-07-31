@@ -4,6 +4,8 @@ blocked_by: [01]
 assets:
   - .plan/codex-provider/assets/appserver-ratelimits-plus.json
   - .plan/codex-provider/assets/GetAccountRateLimitsResponse.schema.json
+claimed_by: s99be713285f7
+claimed_at: 2026-07-31T17:32:11Z
 ---
 
 # Build the Codex provider: binary, client, parser, cadence, error states

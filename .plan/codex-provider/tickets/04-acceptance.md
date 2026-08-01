@@ -1,6 +1,8 @@
 ---
 type: task
 blocked_by: [03]
+claimed_by: s236e2e870d90
+claimed_at: 2026-08-01T03:37:02Z
 ---
 
 # Acceptance: three providers in the real bar, on real use

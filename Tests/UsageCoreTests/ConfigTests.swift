@@ -21,6 +21,11 @@ func runConfigTests(_ t: Harness) {
                     label: "jane",
                     configDir: URL(fileURLWithPath: "/Users/x/.kimi-code")
                 ),
+                Account(
+                    provider: .codex,
+                    label: "alex",
+                    configDir: URL(fileURLWithPath: "/Users/x/.codex-work")
+                ),
             ],
             warnThreshold: 80,
             rowTemplate: "{name} {pct}",
@@ -29,7 +34,8 @@ func runConfigTests(_ t: Harness) {
             menuBarTemplate: "{name}: {pct}",
             menuBarNoDataTemplate: "{name} (waiting)",
             menuBarSeparator: " | ",
-            menuBarMaxAccounts: 3
+            menuBarMaxAccounts: 3,
+            codexBinaryPath: "/Users/x/.local/bin/codex"
         )
         try ConfigStore.save(config, to: url)
         t.checkEqual(ConfigStore.load(from: url), config, "config round-trips")
@@ -64,6 +70,7 @@ func runConfigTests(_ t: Harness) {
         t.checkEqual(loaded.menuBarNoDataTemplate, AppSettings.defaultMenuBarNoDataTemplate, "…no-data template")
         t.checkEqual(loaded.menuBarSeparator, AppSettings.defaultMenuBarSeparator, "…separator")
         t.checkEqual(loaded.menuBarMaxAccounts, 0, "…max accounts")
+        t.checkEqual(loaded.codexBinaryPath, nil, "…Codex binary override")
     } catch { t.check(false, "old-config fixture setup threw \(error)") }
 
     // MARK: A v0.1.4 config — the last release before `Snapshot` became N rows.
@@ -107,6 +114,10 @@ func runConfigTests(_ t: Harness) {
         t.checkEqual(loaded.menuBarNoDataTemplate, "{name} —", "v0.1.4 config: no-data template")
         t.checkEqual(loaded.menuBarSeparator, " · ", "v0.1.4 config: separator")
         t.checkEqual(loaded.menuBarMaxAccounts, 2, "v0.1.4 config: max accounts")
+        t.checkEqual(
+            loaded.codexBinaryPath, nil,
+            "v0.1.4 config: missing Codex binary path defaults without losing accounts"
+        )
     } catch { t.check(false, "v0.1.4 config fixture setup threw \(error)") }
 
     t.checkEqual(
@@ -172,7 +183,7 @@ func runConfigTests(_ t: Harness) {
 
     do {
         let home = root.appendingPathComponent("home")
-        for dir in [".claude", ".claude2", ".kimi-code", ".config", "Documents"] {
+        for dir in [".claude", ".claude2", ".kimi-code", ".codex", ".config", "Documents"] {
             try fm.createDirectory(
                 at: home.appendingPathComponent(dir), withIntermediateDirectories: true
             )
@@ -181,7 +192,7 @@ func runConfigTests(_ t: Harness) {
         t.checkEqual(
             Discovery.claudeConfigDirs(home: home).map(\.lastPathComponent),
             [".claude", ".claude2"],
-            "discovery finds .claude* directories but never auto-registers Kimi"
+            "discovery finds .claude* directories but never auto-registers Kimi or Codex"
         )
         t.checkEqual(
             Discovery.claudeConfigDirs(home: root.appendingPathComponent("nowhere")),
@@ -191,11 +202,60 @@ func runConfigTests(_ t: Harness) {
 
     // MARK: Provider facts projected by Settings
 
-    t.checkEqual(Provider.allCases, [.claude, .kimi], "provider picker lists both sources")
+    t.checkEqual(
+        Provider.allCases, [.claude, .kimi, .codex],
+        "provider picker lists Claude, Kimi, and Codex"
+    )
     t.checkEqual(Provider.claude.displayName, "Claude", "Claude picker label")
     t.checkEqual(Provider.kimi.displayName, "Kimi", "Kimi picker label")
+    t.checkEqual(Provider.codex.displayName, "Codex", "Codex picker label")
+    t.checkEqual(
+        Provider.codex.configDirectoryLabel, "Codex home folder",
+        "Codex folder picker names CODEX_HOME as a home folder"
+    )
     t.check(Provider.claude.usesTap, "Claude account rows expose tap controls")
     t.check(!Provider.kimi.usesTap, "Kimi account rows omit tap status and controls")
+    t.check(!Provider.codex.usesTap, "Codex account rows omit tap status and controls")
+
+    // MARK: Codex registration — explicit, additive, and scoped by CODEX_HOME
+
+    do {
+        let claude = Account(
+            label: "claude", configDir: URL(fileURLWithPath: "/Users/x/.claude")
+        )
+        let kimi = Account(
+            provider: .kimi, label: "kimi",
+            configDir: URL(fileURLWithPath: "/Users/x/.kimi-code")
+        )
+        let codexWork = Account(
+            provider: .codex, label: "work",
+            configDir: URL(fileURLWithPath: "/Users/x/.codex-work")
+        )
+        let codexPersonal = Account(
+            provider: .codex, label: "personal",
+            configDir: URL(fileURLWithPath: "/Users/x/.codex-personal")
+        )
+        var config = AppConfig(accounts: [claude, kimi])
+        config.accounts.append(codexWork)
+        config.accounts.append(codexPersonal)
+
+        t.checkEqual(
+            Array(config.accounts.prefix(2)), [claude, kimi],
+            "registering Codex leaves existing Claude and Kimi accounts untouched"
+        )
+        t.checkEqual(
+            config.accounts.filter { $0.provider == .codex }, [codexWork, codexPersonal],
+            "two Codex accounts retain independent CODEX_HOME identities"
+        )
+
+        config.codexBinaryPath = "/custom/bin/codex"
+        let url = root.appendingPathComponent("codex-registration.json")
+        try ConfigStore.save(config, to: url)
+        t.checkEqual(
+            ConfigStore.load(from: url), config,
+            "Codex accounts and the one machine-wide binary path persist across launches"
+        )
+    } catch { t.check(false, "Codex registration fixture setup threw \(error)") }
 
     // MARK: Tap deployment
 

@@ -12,6 +12,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Kimi's last-known figures, so a relaunch shows what the bar was showing
     /// when it quit. Yacht's own directory — never anything under KIMI_CODE_HOME.
     static let kimiCacheURL = supportDir.appendingPathComponent("kimi-cache.json")
+    /// Codex's last-known figures, keyed by CODEX_HOME. Like the Kimi cache,
+    /// this is Yacht-owned and never placed under an account directory.
+    static let codexCacheURL = supportDir.appendingPathComponent("codex-cache.json")
     /// The command the installer writes; detection compares against it whether
     /// or not the script has been deployed yet. Shell-quoted, because Claude Code
     /// runs the statusLine value through a shell and the deploy path has a space.
@@ -26,6 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// its independent snapshot reader; a failure here can therefore replace
     /// only the corresponding Kimi state.
     private var kimiPollers: [String: KimiUsagePoller] = [:]
+    /// One app-server poller per explicitly registered Codex account.
+    private var codexPollers: [String: CodexUsagePoller] = [:]
+    /// Rebuild the per-account clients when the one machine-wide executable
+    /// changes (including appearing or disappearing between refreshes).
+    private var codexPollerBinaryPath: String?
 
     private(set) var config = ConfigStore.load(from: AppDelegate.configURL)
 
@@ -89,6 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func refresh() {
         syncKimiPollers()
+        syncCodexPollers()
         let states = config.accounts.map { account in
             switch account.provider {
             case .claude:
@@ -98,6 +107,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case .kimi:
                 let state = kimiPollers[accountKey(account)]?.state ?? .tokenExpired
                 return AccountState(account: account, kimi: state)
+            case .codex:
+                let state = codexPollers[accountKey(account)]?.state ?? .waiting
+                return AccountState(account: account, codex: state)
             }
         }
         let vm = render(accounts: states, settings: config.settings, now: Date())
@@ -144,10 +156,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return menu
     }
 
-    /// Opening the dropdown is the one user-driven override to Kimi's adaptive
-    /// cadence. Each poller independently decides whether it can make a request.
+    /// Opening the dropdown is the user-driven override to each pulled
+    /// provider's adaptive cadence. Every poller still decides independently
+    /// whether it can make a request.
     func menuWillOpen(_ menu: NSMenu) {
         kimiPollers.values.forEach { $0.dropdownOpened() }
+        codexPollers.values.forEach { $0.dropdownOpened() }
     }
 
     private func syncKimiPollers() {
@@ -182,6 +196,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             kimiPollers[key] = poller
             poller.start()
         }
+    }
+
+    private func syncCodexPollers() {
+        let codexAccounts = config.accounts.filter { $0.provider == .codex }
+        let desiredKeys = Set(codexAccounts.map(accountKey))
+        let binaryURL = resolvedCodexBinaryURL
+        let binaryPath = binaryURL?.standardizedFileURL.path
+
+        if binaryPath != codexPollerBinaryPath {
+            codexPollers.values.forEach { $0.stop() }
+            codexPollers.removeAll()
+            codexPollerBinaryPath = binaryPath
+        }
+
+        for key in codexPollers.keys.filter({ !desiredKeys.contains($0) }) {
+            codexPollers.removeValue(forKey: key)?.stop()
+        }
+
+        lazy var cached = CodexSnapshotCache.load(from: AppDelegate.codexCacheURL)
+
+        for account in codexAccounts {
+            let key = accountKey(account)
+            guard codexPollers[key] == nil else { continue }
+            let poller = CodexUsagePoller(
+                codexHome: account.configDir,
+                binaryURL: binaryURL,
+                lastKnown: CodexSnapshotCache.snapshot(
+                    codexHome: account.configDir, in: cached
+                )
+            ) { [weak self] state in
+                if case .snapshot(let snapshot) = state {
+                    try? CodexSnapshotCache.store(
+                        snapshot,
+                        codexHome: account.configDir,
+                        at: AppDelegate.codexCacheURL
+                    )
+                }
+                self?.refresh()
+            }
+            codexPollers[key] = poller
+            poller.start()
+        }
+    }
+
+    /// The configured path is exact and authoritative. Without one, the core
+    /// locator searches the settled launchd-safe candidates (never PATH).
+    var resolvedCodexBinaryURL: URL? {
+        CodexBinaryLocator.resolve(configuredPath: config.codexBinaryPath)
+    }
+
+    /// Settings shows the user's exact override even when it is invalid; only
+    /// an unset field is filled from automatic discovery.
+    var displayedCodexBinaryPath: String {
+        config.codexBinaryPath ?? resolvedCodexBinaryURL?.path ?? ""
     }
 
     private func accountKey(_ account: Account) -> String {

@@ -1,24 +1,28 @@
 import Foundation
 
 /// A source Yacht knows how to register. Provider selection is explicit: the
-/// presence of either provider's files on disk never creates an account.
+/// presence of a provider's files on disk never creates an account.
 public enum Provider: String, CaseIterable, Codable {
     case claude
     case kimi
+    case codex
 
     public var displayName: String {
         switch self {
         case .claude: return "Claude"
         case .kimi: return "Kimi"
+        case .codex: return "Codex"
         }
     }
 
-    /// The noun the folder picker uses. `KIMI_CODE_HOME` is a home directory,
-    /// while Claude calls the same account boundary its config directory.
+    /// The noun the folder picker uses. `KIMI_CODE_HOME` and `CODEX_HOME` are
+    /// home directories, while Claude calls the same account boundary its
+    /// config directory.
     public var configDirectoryLabel: String {
         switch self {
         case .claude: return "Claude config folder"
         case .kimi: return "Kimi Code home folder"
+        case .codex: return "Codex home folder"
         }
     }
 
@@ -282,6 +286,27 @@ public struct AccountState: Equatable {
         }
     }
 
+    /// Codex owns both the snapshot and the reason it may be unavailable. As
+    /// with Kimi, keeping those together prevents a carried-forward figure from
+    /// reaching the renderer without its stale marker.
+    public init(account: Account, codex state: CodexProviderState) {
+        self.account = account
+        switch state {
+        case .waiting:
+            self.snapshot = nil
+            self.sourceState = .codex(.waiting)
+        case .snapshot(let snapshot):
+            self.snapshot = snapshot
+            self.sourceState = .codex(.available)
+        case .stale(let snapshot, let reason):
+            self.snapshot = snapshot
+            self.sourceState = .codex(.stale(reason))
+        case .failure(let failure):
+            self.snapshot = nil
+            self.sourceState = .codex(.failure(failure))
+        }
+    }
+
     /// Impure gatherer for the composition root: reads the snapshot and detects
     /// the tap in one pass over the account's config directory.
     public static func gather(account: Account, tapCommand: String) -> AccountState {
@@ -299,6 +324,7 @@ public struct AccountState: Equatable {
 public enum AccountSourceState: Equatable {
     case claude(TapStatus)
     case kimi(KimiAvailability)
+    case codex(CodexAvailability)
 }
 
 /// `tokenExpired` and `unreachable` mean *no figure at all* — no poll has ever
@@ -310,4 +336,14 @@ public enum KimiAvailability: Equatable {
     case stale(KimiStaleReason)
     case tokenExpired
     case unreachable
+}
+
+/// Codex's runtime standing after its first-party app-server request. Failure
+/// retains the exact actionable reason; stale retains why a last-known figure
+/// is being carried forward.
+public enum CodexAvailability: Equatable {
+    case waiting
+    case available
+    case stale(CodexStaleReason)
+    case failure(CodexFailure)
 }

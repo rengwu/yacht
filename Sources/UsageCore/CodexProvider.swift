@@ -50,6 +50,37 @@ public enum CodexBinaryLocator {
             chatGPTCodex: chatGPTCodex
         ).first { probe($0.path) }
     }
+
+    /// Resolves the Settings value. An entered path is authoritative: silently
+    /// falling through to a different installation would leave the field saying
+    /// one thing while Yacht executes another, and a missing override must reach
+    /// the actionable `binaryNotFound` state. With no configured value, normal
+    /// discovery uses the full candidate order above.
+    public static func resolve(
+        configuredPath: String?,
+        userHome: URL = FileManager.default.homeDirectoryForCurrentUser,
+        npmGlobalPrefix: URL? = nil,
+        chatGPTCodex: URL = chatGPTBundledCodex,
+        isExecutable: ((String) -> Bool)? = nil
+    ) -> URL? {
+        let probe = isExecutable ?? { path in
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
+                && !isDirectory.boolValue
+                && FileManager.default.isExecutableFile(atPath: path)
+        }
+        if let configuredPath, !configuredPath.isEmpty {
+            let configured = URL(fileURLWithPath: configuredPath).standardizedFileURL
+            return probe(configured.path) ? configured : nil
+        }
+        return locate(
+            override: nil,
+            userHome: userHome,
+            npmGlobalPrefix: npmGlobalPrefix,
+            chatGPTCodex: chatGPTCodex,
+            isExecutable: probe
+        )
+    }
 }
 
 // MARK: - Strict payload adapter

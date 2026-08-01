@@ -92,6 +92,9 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         let addButton = NSButton(title: "Add Account…", target: self, action: #selector(addAccount))
         stack.addArrangedSubview(addButton)
 
+        stack.addArrangedSubview(caption("Codex binary"))
+        stack.addArrangedSubview(codexBinaryPathRow())
+
         stack.addArrangedSubview(separator())
 
         // MARK: Advanced
@@ -190,6 +193,32 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         let label = dimmed(thresholdText())
         label.identifier = NSUserInterfaceItemIdentifier("threshold-label")
         return row([slider, label])
+    }
+
+    /// One executable serves every Codex account. The field always shows what
+    /// Yacht intends to execute: the exact persisted override when set, or the
+    /// automatically resolved path otherwise. An invalid override remains
+    /// visible alongside its actionable failure instead of being replaced by a
+    /// different installation behind the user's back.
+    private func codexBinaryPathRow() -> NSView {
+        let field = NSTextField(string: app.displayedCodexBinaryPath)
+        field.identifier = NSUserInterfaceItemIdentifier("codex-binary-path")
+        field.delegate = self
+        field.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        field.placeholderString = "/path/to/codex"
+        field.widthAnchor.constraint(equalToConstant: 310).isActive = true
+
+        let status: NSTextField
+        if app.resolvedCodexBinaryURL == nil {
+            status = warning("can't find codex")
+        } else {
+            status = dimmed("executable ✓")
+        }
+
+        let automatic = NSButton(
+            title: "Auto-detect", target: self, action: #selector(autoDetectCodexBinary)
+        )
+        return row([field, status, automatic])
     }
 
     private func rowTemplateRow() -> NSView {
@@ -580,6 +609,11 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         reload()
     }
 
+    @objc private func autoDetectCodexBinary() {
+        app.update { $0.codexBinaryPath = nil }
+        reload()
+    }
+
     /// Every editable field lands here, told apart by identifier. This
     /// notification can arrive *after* the click that removed the very account
     /// being edited — hence the rename by config directory, which finds nothing
@@ -604,6 +638,13 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         // an empty row" — a blank template would leave the account with nothing
         // shown and no way to tell why.
         switch id {
+        case "codex-binary-path":
+            app.update {
+                $0.codexBinaryPath = text.isEmpty
+                    ? nil
+                    : NSString(string: text).expandingTildeInPath
+            }
+            reload()
         case "row-template":
             app.update { $0.rowTemplate = text.isEmpty ? AppSettings.defaultRowTemplate : text }
             field.stringValue = app.config.rowTemplate
@@ -720,6 +761,12 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
         let label = NSTextField(labelWithString: text)
         label.textColor = .secondaryLabelColor
         label.lineBreakMode = .byTruncatingMiddle
+        return label
+    }
+
+    private func warning(_ text: String) -> NSTextField {
+        let label = NSTextField(labelWithString: text)
+        label.textColor = .systemOrange
         return label
     }
 

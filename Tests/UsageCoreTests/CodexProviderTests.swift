@@ -88,6 +88,39 @@ func runCodexProviderTests(_ t: Harness) {
             1,
             "locator: duplicate candidate paths are probed once"
         )
+        t.checkEqual(
+            CodexBinaryLocator.resolve(
+                configuredPath: "/missing/custom/codex",
+                userHome: home,
+                npmGlobalPrefix: npm,
+                chatGPTCodex: bundle,
+                isExecutable: { $0 == bundle.path }
+            ),
+            nil,
+            "settings: a missing override is not silently replaced by another codex"
+        )
+        t.checkEqual(
+            CodexBinaryLocator.resolve(
+                configuredPath: override.path,
+                userHome: home,
+                npmGlobalPrefix: npm,
+                chatGPTCodex: bundle,
+                isExecutable: { $0 == override.path }
+            ),
+            override,
+            "settings: an executable override resolves exactly"
+        )
+        t.checkEqual(
+            CodexBinaryLocator.resolve(
+                configuredPath: nil,
+                userHome: home,
+                npmGlobalPrefix: npm,
+                chatGPTCodex: bundle,
+                isExecutable: { $0 == bundle.path }
+            ),
+            bundle,
+            "settings: no override uses automatic discovery"
+        )
     }
 
     // MARK: JSON-RPC request contract (transport remains unspawned)
@@ -287,6 +320,94 @@ func runCodexProviderTests(_ t: Harness) {
 
     let known = (try? CodexUsageParser.parse(fixture, capturedAt: capturedAt))
         ?? Snapshot(rows: [], updatedAt: capturedAt)
+
+    // MARK: Registration projection — figures and actionable failures
+
+    let codexAccount = Account(
+        provider: .codex,
+        label: "codex",
+        configDir: URL(fileURLWithPath: "/fixtures/codex")
+    )
+    for failure in [
+        CodexFailure.binaryNotFound,
+        .signedOut,
+        .unreachable,
+        .unexpectedReply,
+    ] {
+        let vm = render(
+            accounts: [AccountState(account: codexAccount, codex: .failure(failure))],
+            settings: AppSettings(),
+            now: capturedAt
+        )
+        t.checkEqual(
+            vm.accounts[0].note, failure.message,
+            "render: Codex failure is exposed as its actionable message: \(failure)"
+        )
+        t.checkEqual(
+            vm.accounts[0].noteTone, .warn,
+            "render: Codex failure warns: \(failure)"
+        )
+    }
+
+    let workSnapshot = Snapshot(
+        rows: [UsageRow(
+            window: .weekly, used: 10, limit: 100,
+            resetsAt: capturedAt.addingTimeInterval(86_400)
+        )],
+        updatedAt: capturedAt,
+        primary: .weekly
+    )
+    let personalSnapshot = Snapshot(
+        rows: [UsageRow(
+            window: .weekly, used: 82, limit: 100,
+            resetsAt: capturedAt.addingTimeInterval(86_400)
+        )],
+        updatedAt: capturedAt,
+        primary: .weekly
+    )
+    let twoCodexAccounts = render(
+        accounts: [
+            AccountState(account: codexAccount, codex: .snapshot(workSnapshot)),
+            AccountState(
+                account: Account(
+                    provider: .codex,
+                    label: "codex2",
+                    configDir: URL(fileURLWithPath: "/fixtures/codex2")
+                ),
+                codex: .snapshot(personalSnapshot)
+            ),
+        ],
+        settings: AppSettings(showMenuBarIcon: false),
+        now: capturedAt
+    )
+    t.checkEqual(
+        twoCodexAccounts.menuBar,
+        [
+            StyledText("codex 10%", .normal),
+            StyledText(AppSettings.defaultMenuBarSeparator, .dimmed),
+            StyledText("codex2 82%", .warn),
+        ],
+        "render: two registered CODEX_HOME accounts keep independent figures"
+    )
+
+    let carried = render(
+        accounts: [AccountState(
+            account: codexAccount,
+            codex: .stale(workSnapshot, reason: .failure(.unreachable))
+        )],
+        settings: AppSettings(),
+        now: capturedAt.addingTimeInterval(12 * 60)
+    )
+    t.checkEqual(
+        carried.accounts[0].note,
+        "last fetched 12m ago — couldn't reach OpenAI — wait",
+        "render: a carried Codex figure keeps its failure explanation and age"
+    )
+    t.checkEqual(
+        carried.menuBar[2], StyledText("codex 10%", .dimmed),
+        "render: a carried Codex figure remains visible in the bar"
+    )
+
     t.checkEqual(
         CodexResponseStateMachine.carryForward(.failure(.unreachable), lastKnown: known),
         .stale(known, reason: .failure(.unreachable)),

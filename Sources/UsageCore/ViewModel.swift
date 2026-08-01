@@ -153,6 +153,7 @@ private func barTone(_ percentage: Double, settings: AppSettings, stale: Bool) -
 
 private func isStale(_ state: AccountSourceState) -> Bool {
     if case .kimi(.stale) = state { return true }
+    if case .codex(.stale) = state { return true }
     return false
 }
 
@@ -267,6 +268,20 @@ private func providerNote(
         return StyledText("token expired — run kimi to refresh", .dimmed)
     case .kimi(.unreachable):
         return StyledText("couldn't reach Kimi", .warn)
+    case .codex(.waiting):
+        return StyledText("checking Codex usage…", .dimmed)
+    case .codex(.available):
+        return nil
+    case .codex(.stale(let reason)):
+        let age = snapshot.map { Format.age(of: $0.updatedAt, at: now) } ?? "a while"
+        switch reason {
+        case .awaitingRefresh:
+            return StyledText("last fetched \(age) — checking Codex usage…", .dimmed)
+        case .failure(let failure):
+            return StyledText("last fetched \(age) — \(failure.message)", .warn)
+        }
+    case .codex(.failure(let failure)):
+        return StyledText(failure.message, .warn)
     }
 }
 

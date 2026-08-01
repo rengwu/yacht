@@ -1,7 +1,7 @@
 import Foundation
 
-/// What the app persists: the registered accounts and everything `AppSettings`
-/// holds.
+/// What the app persists: registered accounts, everything `AppSettings` holds,
+/// and machine-wide provider installation choices.
 public struct AppConfig: Equatable, Codable {
     public var accounts: [Account]
     public var warnThreshold: Double
@@ -12,6 +12,9 @@ public struct AppConfig: Equatable, Codable {
     public var menuBarNoDataTemplate: String
     public var menuBarSeparator: String
     public var menuBarMaxAccounts: Int
+    /// A user-selected codex executable, shared by every Codex account on this
+    /// machine. `nil` means discover one from the settled candidate list.
+    public var codexBinaryPath: String?
 
     public init(
         accounts: [Account] = [],
@@ -22,7 +25,8 @@ public struct AppConfig: Equatable, Codable {
         menuBarTemplate: String = AppSettings.defaultMenuBarTemplate,
         menuBarNoDataTemplate: String = AppSettings.defaultMenuBarNoDataTemplate,
         menuBarSeparator: String = AppSettings.defaultMenuBarSeparator,
-        menuBarMaxAccounts: Int = 0
+        menuBarMaxAccounts: Int = 0,
+        codexBinaryPath: String? = nil
     ) {
         self.accounts = accounts
         self.warnThreshold = warnThreshold
@@ -33,6 +37,7 @@ public struct AppConfig: Equatable, Codable {
         self.menuBarNoDataTemplate = menuBarNoDataTemplate
         self.menuBarSeparator = menuBarSeparator
         self.menuBarMaxAccounts = menuBarMaxAccounts
+        self.codexBinaryPath = codexBinaryPath
     }
 
     /// Every field is optional on the way in, falling back to its default. A
@@ -56,7 +61,8 @@ public struct AppConfig: Equatable, Codable {
                 ?? AppSettings.defaultMenuBarNoDataTemplate,
             menuBarSeparator: try c.decodeIfPresent(String.self, forKey: .menuBarSeparator)
                 ?? AppSettings.defaultMenuBarSeparator,
-            menuBarMaxAccounts: try c.decodeIfPresent(Int.self, forKey: .menuBarMaxAccounts) ?? 0
+            menuBarMaxAccounts: try c.decodeIfPresent(Int.self, forKey: .menuBarMaxAccounts) ?? 0,
+            codexBinaryPath: try c.decodeIfPresent(String.self, forKey: .codexBinaryPath)
         )
     }
 

@@ -37,9 +37,38 @@ settled by argument.
 ## Acceptance criteria
 
 - [ ] All three providers render together in the real menu bar over several days of ordinary use
-- [ ] Codex's figure matches what codex itself reports
+- [x] Codex's figure matches what codex itself reports
 - [ ] Verified from a Yacht actually launched at login, not from a terminal
 - [ ] Each open fog patch in [`map.md`](../map.md) is either struck or restated with what was learned
 - [ ] Any wrong Codex *number* is filed as a bug; a dark Codex section after a codex upgrade is
       recorded as expected breakage — decision 12 draws that line, and acceptance is where it is
       first tested
+
+## Acceptance log
+
+### 2026-08-01 — baseline installed; daily-use observation remains open
+
+- Built the ticket-03 head as an ad-hoc-signed `0.2.0-codex-acceptance` bundle and installed it at
+  `/Applications/Yacht.app`. The prior `0.2.0-rc2` bundle is retained at
+  `/Applications/Yacht.app.pre-codex-acceptance-20260801`.
+- Added the real `~/.codex` account to the existing two-Claude/one-Kimi config. Automation did not
+  have Accessibility or Screen Recording permission, so this was the config-level equivalent of
+  registration rather than a click through Settings. The original config is retained alongside it
+  as `config.json.pre-codex-acceptance-20260801`.
+- The first real Yacht poll auto-detected `~/.local/bin/codex` with no configured override and wrote
+  Yacht's own Codex cache. It reported one primary `7d` row at **1% used**. Codex CLI 0.146.0's own
+  `/status` view simultaneously reported **99% left**, so the figure matches digit-for-digit.
+- Both Claude snapshot files and the Kimi and Codex caches were present while the installed app ran;
+  no provider-side failure accompanied the Codex poll. The user visually confirmed that the real
+  bar looks good with the providers together on this baseline; the several-days criterion remains
+  open.
+- Supporting PATH diagnostic only (not credited as login acceptance): a temporary launchd-submitted
+  Yacht process was given an empty environment except `HOME`, identity, `TMPDIR`, and launchd's
+  `/usr/bin:/bin:/usr/sbin:/sbin` PATH. It still found the user Codex install and refreshed the cache.
+  The diagnostic job was removed and the ordinary installed app restarted.
+
+Still open before this ticket can receive an Answer: observe this exact build after a normal macOS
+login; use it over several ordinary days; judge whether weekly-in-the-bar is useful; visually judge
+a stale high Codex figure and the four failure messages if they occur; record whether
+`rateLimitReachedType` ever blocks below 100%; and classify any post-upgrade darkness versus any
+wrong number under decision 12. No claim is made yet for those acceptance criteria.

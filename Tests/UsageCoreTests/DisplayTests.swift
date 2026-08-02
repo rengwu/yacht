@@ -298,7 +298,7 @@ func runDisplayTests(_ t: Harness) {
                            settings: settings, now: now)
         let w = after.accounts[0].windows[0]
         t.checkEqual(
-            w.text, "5h  ░░░░░░░░░░    0%  ·  reset passed — empty until a session confirms",
+            w.text, "5h  ░░░░░░░░░░    0%  ·  reset passed",
             "after reset: empty, and the inference is stated plainly in place of a reset time"
         )
         t.checkEqual(w.tone, .normal, "after reset: no stale alarm")

@@ -204,11 +204,12 @@ private func windowView(
     // Past the reset there is no reset time to render and no session has confirmed
     // the window is empty, so this row states the inference instead of obeying the
     // template: the template describes a live window, and this wording is a claim
-    // about what is known, not a preference.
+    // about what is known, not a preference. It is kept short because the dropdown
+    // sizes to its widest row.
     guard now < row.resetsAt else {
         return WindowView(
             text: "\(row.label)  \(Format.bar(0))  \(Format.column(Format.percent(0)))"
-                + "  ·  reset passed — empty until a session confirms",
+                + "  ·  reset passed",
             tone: .normal
         )
     }

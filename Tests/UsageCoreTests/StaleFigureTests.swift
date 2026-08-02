@@ -188,9 +188,7 @@ func runStaleFigureTests(_ t: Harness) {
         "render: a stale row past its own reset still empties rather than freezing"
     )
     t.check(
-        expiredRow.accounts[0].windows[0].text.hasSuffix(
-            "reset passed — empty until a session confirms"
-        ),
+        expiredRow.accounts[0].windows[0].text.hasSuffix("reset passed"),
         "render: the stale row states the reset inference, unchanged by staleness"
     )
 

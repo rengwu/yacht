@@ -26,8 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var timer: Timer?
     private var settingsController: SettingsWindowController?
     /// One adaptive poller per explicitly registered Kimi account. Claude keeps
-    /// its independent snapshot reader; a failure here can therefore replace
-    /// only the corresponding Kimi state.
+    /// its independent snapshot reader and Codex its own pollers below; a failure
+    /// here can therefore replace only the corresponding Kimi state.
     private var kimiPollers: [String: KimiUsagePoller] = [:]
     /// One app-server poller per explicitly registered Codex account.
     private var codexPollers: [String: CodexUsagePoller] = [:]
@@ -40,8 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMainMenu()
         refresh()
-        // The snapshots only change while Claude Code runs, but countdowns and the
-        // reset boundary are relative to now, so redraw on a timer regardless.
+        // Every provider's figures change only when its own source does — a Claude
+        // turn, a Kimi or Codex poll — but countdowns and the reset boundary are
+        // relative to now, so redraw on a timer regardless.
         let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             self?.refresh()
         }

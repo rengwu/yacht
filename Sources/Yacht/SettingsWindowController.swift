@@ -8,8 +8,8 @@ private final class InfoButton: NSButton {
 }
 
 /// The settings window: register accounts, label them, install the Claude tap,
-/// set the warn threshold. Pure projection + explicit actions; all provider
-/// facts, tap status, and discovery come from UsageCore.
+/// point Codex at its binary, set the warn threshold. Pure projection + explicit
+/// actions; all provider facts, tap status, and discovery come from UsageCore.
 final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, NSWindowDelegate {
 
     private unowned let app: AppDelegate

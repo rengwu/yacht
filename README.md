@@ -1,6 +1,6 @@
-# ⛵️ Yacht
+<h1>Yacht</h1>
 
-<img src="https://i.imgur.com/OHvWTz8.png" style="width: 400px" />
+<img src="docs/assets/demo-v0.1.6.png" style="width: 400px" />
 
 A macOS menu bar app that shows rate-limit usage for coding agents.
 Multi-account friendly.
@@ -20,7 +20,7 @@ Multi-account friendly.
 - Customizable menu bar icon (with a preset picker)
 - Launch at login
 
-<img src="https://i.imgur.com/Hfk4aoS.png" style="width: 520px" />
+<img src="docs/assets/demo-settings-v0.1.6.png" style="width: 520px" />
 
 ## Requirements
 
@@ -76,7 +76,7 @@ that token has expired, the dropdown says so and the fix is to use `kimi` again.
 Nothing to install per account. Yacht finds the `codex` binary itself, and **Settings → Codex
 binary** shows what it resolved; type a path there if you keep `codex` somewhere unusual, or hit
 **Auto-detect** to go back to discovery. One executable serves every Codex account. If the field
-reads *can't find codex*, no Codex figure can be fetched until it resolves.
+reads _can't find codex_, no Codex figure can be fetched until it resolves.
 
 ## Running multiple accounts
 

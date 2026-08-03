@@ -10,8 +10,10 @@ version="${1:-0.0.0-dev}"
 swift build -c release --package-path "$root"
 
 rm -rf "$app"
-mkdir -p "$app/Contents/MacOS"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$root/.build/release/Yacht" "$app/Contents/MacOS/Yacht"
+# Prebuilt so a release build needs no SVG toolchain; see Resources/make-icon.sh.
+cp "$root/Resources/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
 
 cat >"$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -23,6 +25,10 @@ cat >"$app/Contents/Info.plist" <<PLIST
   <key>CFBundleIdentifier</key>      <string>local.yacht</string>
   <key>CFBundleExecutable</key>      <string>Yacht</string>
   <key>CFBundlePackageType</key>     <string>APPL</string>
+  <!-- LSUIElement hides the Dock icon, but Finder, the DMG, Get Info and any
+       app-modal alert still ask for this one. -->
+  <key>CFBundleIconFile</key>        <string>AppIcon</string>
+  <key>CFBundleIconName</key>        <string>AppIcon</string>
   <key>CFBundleShortVersionString</key> <string>$version</string>
   <key>LSMinimumSystemVersion</key>  <string>13.0</string>
   <!-- Menu bar only: no Dock icon, no app switcher entry. -->

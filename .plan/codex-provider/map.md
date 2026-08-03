@@ -72,30 +72,30 @@ The design is settled in [`spec.md`](./spec.md); these tickets execute it. What 
   `Codable`; stale figures at or above warn keep their tone.
   ([01](./tickets/01-primary-window-rule.md))
 
+- **All three providers accepted in the real bar**, on two days of ordinary use judged by the user.
+  Codex's figure matched codex's own `account/rateLimits/read` digit-for-digit twice, at **1%** and
+  then **16%**, so the poller tracks a moving number. **The launchd PATH worry is resolved by
+  absolute-path probing, not by PATH**: the installed app runs with
+  `PATH=/usr/bin:/bin:/usr/sbin:/sbin` and still finds `~/.local/bin/codex`. **Weekly-in-the-bar is
+  useful but dull** — accepted with caveat, and the only window Codex reports.
+  **`rateLimitReachedType` never bit** on this Plus plan. Two claims are accepted on substitute
+  evidence and named as such: no login event ever launched this build (uptime since 2026-07-13), and
+  a `codexBinaryPath` override — not the probe — served the polls from 2026-08-03 15:26.
+  ([04](./tickets/04-acceptance.md))
+
 ## Not yet specified
 
-- **Whether the weekly window is the right thing for the Codex bar to show.**
-  [`spec.md`](./spec.md) decision 3 takes the bar's figure from whatever the wire calls `primary`,
-  and on this plan that is the weekly. It is the only window Codex reports, so there is no
-  alternative today — but whether a weekly percentage is *useful at a glance* is a different
-  question from whether it is correct, and real use decides it, not argument.
-  <clears-with: 04>
-
-- **Whether "can't find codex" actually fires when it matters.** The launchd PATH problem is
-  reasoned from `launchctl getenv PATH` being unset, not observed in a shipped login item. The
-  failure it produces must be verified from a real Yacht launched at login, not from a
-  terminal-launched debug build, which inherits a PATH the login item will not have.
-  <clears-with: 04>
-
-- **Whether ignoring `rateLimitReachedType` bites.** [`spec.md`](./spec.md) decision 11 knowingly
-  accepts that Yacht will show a comfortable figure on a day Codex blocks the user below 100%. On a
-  Plus plan with no credits enabled this may never occur; if it does, the recorded remedy is to pin
-  the tone, not to redesign.
-  <clears-with: 04>
-
 - **Whether Codex ever populates `secondary` on this account.** Every observation so far has
-  `secondary: null`. The primary-row rule is built to follow a restored 5-hour window automatically,
-  but that path has never executed against a real payload.
+  `secondary: null`, including acceptance's final read on 2026-08-03. The primary-row rule is built
+  to follow a restored 5-hour window automatically, but that path has never executed against a real
+  payload. If it ever does, the weekly-in-the-bar verdict below is worth re-judging rather than
+  assuming settled.
+
+- **How the four failure states and the stale carve-out actually read.** Acceptance ran two days on
+  a healthy account: no Codex failure and no stale Codex figure ever reached the bar, so the
+  wording of all four messages and the "stale keeps its warn/critical tone" carve-out
+  ([`spec.md`](./spec.md) decision 10) are unjudged in the flesh. Not a defect — unobserved. Look
+  properly at the first one that appears in real use.
 
 ## Out of scope
 

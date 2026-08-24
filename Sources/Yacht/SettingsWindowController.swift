@@ -240,6 +240,12 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, N
             target: self, action: #selector(toggleLaunchAtLogin(_:))
         )
         check.state = LaunchAtLogin.isEnabled ? .on : .off
+        // A loose `.build` copy cannot be a login item (see `UnsupportedLoginItem`).
+        // Say so on the row rather than letting the click fail into an alert.
+        guard LaunchAtLogin.isSupported else {
+            check.isEnabled = false
+            return row([check, dimmed("available once Yacht is installed as an app")])
+        }
         return row([check])
     }
 

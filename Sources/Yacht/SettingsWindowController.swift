@@ -1,795 +1,683 @@
 import Cocoa
 import UsageCore
 
-/// An "ⓘ" button that carries the text its popover should show — `NSButton` has
-/// nowhere else to hold that per-instance.
-private final class InfoButton: NSButton {
-    var helpText: String = ""
-}
-
-/// The settings window: register accounts, label them, install the Claude tap,
-/// point Codex at its binary, set the warn threshold. Pure projection + explicit
-/// actions; all provider facts, tap status, and discovery come from UsageCore.
-final class SettingsWindowController: NSWindowController, NSTextFieldDelegate, NSWindowDelegate {
-
+final class SettingsWindowController: NSWindowController, NSWindowDelegate,
+    NSTableViewDataSource, NSTableViewDelegate, NSTextFieldDelegate {
     private unowned let app: AppDelegate
-    private let stack = NSStackView()
-    /// The icon-preset popover, held onto so picking a preset can close it —
-    /// unlike the info popovers, a pick is a completed action, not something to
-    /// leave open until the next click elsewhere.
-    private var iconPresetsPopover: NSPopover?
-    /// The dozen preset buttons currently on screen, held onto so the Shuffle
-    /// button can redraw them in place — a new random sample, same buttons —
-    /// instead of tearing down and rebuilding the popover just to change what
-    /// twelve glyphs it's showing.
-    private var iconPresetButtons: [NSButton] = []
-    /// The glyphs currently assigned to the preset grid, persisted across
-    /// opens and closes — only `shuffleMenuBarIconPresets` ever changes this.
-    /// Opening the popover shows whatever was last shown (or this one-time
-    /// random draw, the first time); closing it, by a pick or a click
-    /// elsewhere, never shuffles anything.
-    private var currentIconPresets = Array(
-        SettingsWindowController.menuBarIconPool.shuffled().prefix(SettingsWindowController.presetsShown)
-    )
+    private let settingsStack = NSStackView()
+    private let table = AccountsTableView()
+    private let removeButton = NSButton(title: "−", target: nil, action: nil)
+    private let folderPath = NSTextField(labelWithString: "")
+    private let tapButton = NSButton(title: "Install Tap…", target: nil, action: nil)
+    private var accountsHeight: NSLayoutConstraint?
+    private let thresholdCaption = NSTextField(labelWithString: "")
+    private let preview = StatusContentView()
+    private var addController: AddAccountController?
+    private var knownWindows: [String: [UsageWindow]] = [:]
+    private let dragType = NSPasteboard.PasteboardType("local.yacht.account-folder")
 
     init(app: AppDelegate) {
         self.app = app
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 420),
-            styleMask: [.titled, .closable],
-            backing: .buffered, defer: false
+            contentRect: NSRect(x: 0, y: 0, width: 660, height: 640),
+            styleMask: [.titled, .closable], backing: .buffered, defer: false
         )
-        window.title = "Yacht Settings"
-        window.center()
+        window.title = AppDelegate.isDemo ? "Yacht Settings — Demo" : "Yacht Settings"
+        window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
+        build()
+        fitWindowToContents()
+        window.center()
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    private func build() {
+        guard let content = window?.contentView else { return }
+        let stack = settingsStack
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
-        stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
-        window.contentView = stack
-        reload()
-    }
-
-    required init?(coder: NSCoder) { fatalError("not used") }
-
-    // MARK: - Build
-
-    func reload() {
-        stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-
-        // MARK: General
-
-        stack.addArrangedSubview(header("General"))
-        stack.addArrangedSubview(launchAtLoginRow())
-        stack.addArrangedSubview(showMenuBarIconRow())
-        stack.addArrangedSubview(caption("Menu bar icon"))
-        stack.addArrangedSubview(menuBarIconRow())
-        stack.addArrangedSubview(caption("Warning threshold"))
-        stack.addArrangedSubview(thresholdRow())
-
-        stack.addArrangedSubview(separator())
-
-        // MARK: Accounts
-
-        stack.addArrangedSubview(header("Accounts"))
-        if app.config.accounts.isEmpty {
-            stack.addArrangedSubview(dimmed("None registered yet."))
-        }
-        for account in app.config.accounts {
-            stack.addArrangedSubview(accountRow(account: account))
-        }
-
-        let discovered = discoveredDirs()
-        if !discovered.isEmpty {
-            stack.addArrangedSubview(caption("Discovered"))
-            for dir in discovered {
-                stack.addArrangedSubview(discoveredRow(dir))
-            }
-        }
-
-        let addButton = NSButton(title: "Add Account…", target: self, action: #selector(addAccount))
-        stack.addArrangedSubview(addButton)
-
-        stack.addArrangedSubview(caption("Codex binary"))
-        stack.addArrangedSubview(codexBinaryPathRow())
-
-        stack.addArrangedSubview(separator())
-
-        // MARK: Advanced
-
-        stack.addArrangedSubview(header("Advanced"))
-
-        stack.addArrangedSubview(captionRow(
-            "Menu bar text", variables: "{name} {bar} {pct} {pct_7d} {reset_at} {reset_in}"
-        ))
-        stack.addArrangedSubview(menuBarTemplateRow())
-
-        stack.addArrangedSubview(captionRow("Menu bar text (no data yet)", variables: "{name}"))
-        stack.addArrangedSubview(menuBarNoDataTemplateRow())
-
-        stack.addArrangedSubview(caption("Menu bar separator"))
-        stack.addArrangedSubview(menuBarSeparatorRow())
-
-        stack.addArrangedSubview(caption("Max accounts shown in menu bar"))
-        stack.addArrangedSubview(menuBarMaxAccountsRow())
-
-        stack.addArrangedSubview(captionRow(
-            "Dropdown row template", variables: "{name} {bar} {pct} {reset_at} {reset_in}"
-        ))
-        stack.addArrangedSubview(rowTemplateRow())
-
-        window?.layoutIfNeeded()
-    }
-
-    /// Discovery minus what is already registered.
-    private func discoveredDirs() -> [URL] {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let registered = Set(app.config.accounts.map { $0.configDir.standardizedFileURL.path })
-        return Discovery.claudeConfigDirs(home: home)
-            .filter { !registered.contains($0.standardizedFileURL.path) }
-    }
-
-    // MARK: - Rows
-
-    /// Every control in the row carries the account's config directory — its
-    /// identity — not its index. See the note on `AppConfig.remove`.
-    private func accountRow(account: Account) -> NSView {
-        let label = NSTextField(string: account.label)
-        label.identifier = NSUserInterfaceItemIdentifier("label:" + account.configDir.path)
-        label.delegate = self
-        label.widthAnchor.constraint(equalToConstant: 95).isActive = true
-
-        let path = dimmed(abbreviate(account.configDir))
-        path.widthAnchor.constraint(equalToConstant: 120).isActive = true
-
-        let provider = dimmed(account.provider.displayName)
-        provider.widthAnchor.constraint(equalToConstant: 45).isActive = true
-
-        var views: [NSView] = [label, provider, path]
-        var installButton: NSButton?
-        if account.provider.usesTap {
-            let status = TapInstaller.detect(
-                configDir: account.configDir, tapCommand: AppDelegate.tapCommand
-            )
-            switch status {
-            case .installed:
-                views.append(dimmed("tap installed ✓"))
-            case .notInstalled:
-                views.append(dimmed("tap not installed"))
-                installButton = NSButton(
-                    title: "Install Tap", target: self, action: #selector(installTap(_:))
-                )
-            case .foreign(let command):
-                views.append(dimmed("other status line: \(command)"))
-                installButton = NSButton(
-                    title: "Replace with Tap", target: self, action: #selector(installTap(_:))
-                )
-            }
-        }
-
-        let remove = NSButton(title: "Remove", target: self, action: #selector(removeAccount(_:)))
-        remove.identifier = NSUserInterfaceItemIdentifier(account.configDir.path)
-        installButton?.identifier = NSUserInterfaceItemIdentifier(account.configDir.path)
-
-        if let installButton { views.append(installButton) }
-        views.append(remove)
-        return row(views)
-    }
-
-    private func discoveredRow(_ dir: URL) -> NSView {
-        let add = NSButton(title: "Add", target: self, action: #selector(addDiscovered(_:)))
-        add.identifier = NSUserInterfaceItemIdentifier(dir.path)
-        return row([dimmed(abbreviate(dir)), add])
-    }
-
-    private func thresholdRow() -> NSView {
-        let slider = NSSlider(
-            value: app.config.warnThreshold, minValue: 50, maxValue: 95,
-            target: self, action: #selector(thresholdChanged(_:))
-        )
-        slider.widthAnchor.constraint(equalToConstant: 220).isActive = true
-        let label = dimmed(thresholdText())
-        label.identifier = NSUserInterfaceItemIdentifier("threshold-label")
-        return row([slider, label])
-    }
-
-    /// One executable serves every Codex account. The field always shows what
-    /// Yacht intends to execute: the exact persisted override when set, or the
-    /// automatically resolved path otherwise. An invalid override remains
-    /// visible alongside its actionable failure instead of being replaced by a
-    /// different installation behind the user's back.
-    private func codexBinaryPathRow() -> NSView {
-        let field = NSTextField(string: app.displayedCodexBinaryPath)
-        field.identifier = NSUserInterfaceItemIdentifier("codex-binary-path")
-        field.delegate = self
-        field.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        field.placeholderString = "/path/to/codex"
-        field.widthAnchor.constraint(equalToConstant: 310).isActive = true
-
-        let status: NSTextField
-        if app.resolvedCodexBinaryURL == nil {
-            status = warning("can't find codex")
-        } else {
-            status = dimmed("executable ✓")
-        }
-
-        let automatic = NSButton(
-            title: "Auto-detect", target: self, action: #selector(autoDetectCodexBinary)
-        )
-        return row([field, status, automatic])
-    }
-
-    private func rowTemplateRow() -> NSView {
-        let field = NSTextField(string: app.config.rowTemplate)
-        field.identifier = NSUserInterfaceItemIdentifier("row-template")
-        field.delegate = self
-        field.font = .monospacedSystemFont(ofSize: 12, weight: .regular)  // as the row is
-        field.widthAnchor.constraint(equalToConstant: 380).isActive = true
-        let reset = NSButton(title: "Reset", target: self, action: #selector(resetRowTemplate))
-        return row([field, reset])
-    }
-
-    /// The checkbox is set from the system's *live* state, not a stored flag —
-    /// so if registration ever silently fails, the box reflects the failure
-    /// rather than a hopeful intention.
-    private func launchAtLoginRow() -> NSView {
-        let check = NSButton(
-            checkboxWithTitle: "Launch at login",
-            target: self, action: #selector(toggleLaunchAtLogin(_:))
-        )
-        check.state = LaunchAtLogin.isEnabled ? .on : .off
-        // A loose `.build` copy cannot be a login item (see `UnsupportedLoginItem`).
-        // Say so on the row rather than letting the click fail into an alert.
-        guard LaunchAtLogin.isSupported else {
-            check.isEnabled = false
-            return row([check, dimmed("available once Yacht is installed as an app")])
-        }
-        return row([check])
-    }
-
-    /// Unchecking this is not absolute — `render` shows the icon anyway if every
-    /// account's text has gone empty, so the status item is never unclickable.
-    /// See the comment on `AppSettings.showMenuBarIcon`.
-    private func showMenuBarIconRow() -> NSView {
-        let check = NSButton(
-            checkboxWithTitle: "Show menu bar icon",
-            target: self, action: #selector(toggleShowMenuBarIcon(_:))
-        )
-        check.state = app.config.showMenuBarIcon ? .on : .off
-        return row([check])
-    }
-
-    private func thresholdText() -> String {
-        "orange at \(Int(app.config.warnThreshold))%, red at \(Int(app.config.settings.criticalThreshold))%"
-    }
-
-    /// The default glyph, plus a much larger pool than the popover ever shows
-    /// at once — `showMenuBarIconPresets` samples `presetsShown` of these at
-    /// random on every open, so the grid is never the same list twice. Grouped
-    /// by theme rather than picked at random itself: AI/hardware, time (moon
-    /// phases and clocks), usage/metrics, the uncanny/mystical angle
-    /// on what a model actually is, learning, thinking, plain fun, expressions,
-    /// body/communication, people, animals, nature/food, alerts/signals, and
-    /// objects. A starting point regardless — the field beside it takes
-    /// anything.
-    private static let menuBarIconPool: [String] = ["⛵️"] + [
-        "🤖", "👾", "🧠", "🦾", "👽", "🛸", "💻", "🖥️", "⌨️",
-        "⏳", "⌛", "⏱️", "⏰", "🕰️", "⏲️", "🌙", "🌗", "🌘", "🌑",
-        "⚡", "🔋", "🪫",   "🌡️", "📈", "📉", "📊", "🧮",
-        "🔮", "✨", "🪄", "🌀", "💫", "🪐", "🌠", "☄️", "🛰️",
-        "📚", "🎓", "🔬", "🧪", "💡", "🧩", "🤔","🧃", "🌪️", "🔄", "🎡",
-        "🎉", "🎲", "🌈", "🎨",
-        // expressions
-        "😎", "🤓", "🧐", "🤤",
-        // body / communication
-        "👀", "🫀", "✍️", "💭", "💬", "🗨️", "🗣️",
-        // people
-        "💁", "👨‍🍳", "👩‍🔬", "🧞‍♂️", "👯",
-        // animals
-        "🦧", "🐎", "🦮", "🐥", "🐸", "🦦", "🦞", "🐌",
-        // nature / food
-        "🌱", "☘️", "🍯", "🍼", "🍕", "🍞",
-        // alerts / signals
-        "🚨", "🚦", "🛎️", "🔔", "📶", "✳️", "🏁",
-        // objects
-        "🚀", "🔥", "🪩", "🧨", "💎", "💣", "🗿", "🚬", "🚰", "🫪",
-    ]
-
-    /// How many of the pool the popover grid holds at once, laid out `columns`
-    /// wide. 12 sits comfortably in the 8–16 range a popover can hold without
-    /// feeling either sparse or crowded.
-    private static let presetsShown = 12
-    private static let presetsColumns = 4
-
-    private func menuBarIconRow() -> NSView {
-        let field = NSTextField(string: app.config.menuBarIcon)
-        field.identifier = NSUserInterfaceItemIdentifier("menubar-icon")
-        field.delegate = self
-        field.alignment = .center
-        field.font = .systemFont(ofSize: 14)
-        field.widthAnchor.constraint(equalToConstant: 36).isActive = true
-        let reset = NSButton(title: "Reset", target: self, action: #selector(resetMenuBarIcon))
-        let presets = NSButton(
-            title: "Presets…", target: self, action: #selector(showMenuBarIconPresets(_:))
-        )
-        return row([field, reset, presets])
-    }
-
-    /// A 3x4 grid of preset buttons in a popover, rather than a permanent row —
-    /// a dozen buttons sitting in the window at all times outweighs how often
-    /// they're actually used, which is once, maybe twice. The grid renders
-    /// whatever `currentIconPresets` currently holds — opening never draws a
-    /// new set, only a Shuffle button below it does, so reopening the popover
-    /// (or dismissing it with a click elsewhere) shows the same dozen it did
-    /// last time. Each button's identifier carries the glyph itself, the same
-    /// way an account row's controls carry its config directory — the value
-    /// the click means to set, not a position to look it up from.
-    @objc private func showMenuBarIconPresets(_ sender: NSButton) {
-        let buttons = currentIconPresets.map { icon -> NSButton in
-            let button = NSButton(title: icon, target: self, action: #selector(pickMenuBarIcon(_:)))
-            button.identifier = NSUserInterfaceItemIdentifier(icon)
-            button.font = .systemFont(ofSize: 16)
-            button.widthAnchor.constraint(equalToConstant: 28).isActive = true
-            button.heightAnchor.constraint(equalToConstant: 28).isActive = true
-            return button
-        }
-        iconPresetButtons = buttons
-
-        let rows = stride(from: 0, to: buttons.count, by: Self.presetsColumns).map { start -> NSStackView in
-            let end = min(start + Self.presetsColumns, buttons.count)
-            let buttonRow = NSStackView(views: Array(buttons[start..<end]))
-            buttonRow.spacing = 4
-            return buttonRow
-        }
-        let grid = NSStackView(views: rows)
-        grid.orientation = .vertical
-        grid.spacing = 4
-
-        let shuffle = NSButton(title: "Shuffle", target: self, action: #selector(shuffleMenuBarIconPresets))
-
-        let content = NSStackView(views: [grid, shuffle])
-        content.orientation = .vertical
-        content.alignment = .centerX
-        content.spacing = 8
-        content.translatesAutoresizingMaskIntoConstraints = false
-
-        let container = NSView()
-        container.addSubview(content)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(stack)
         NSLayoutConstraint.activate([
-            content.topAnchor.constraint(equalTo: container.topAnchor, constant: 10),
-            content.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -10),
-            content.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 10),
-            content.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
+            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 16),
         ])
-
-        let controller = NSViewController()
-        controller.view = container
-        let popover = NSPopover()
-        popover.contentViewController = controller
-        popover.behavior = .transient
-        iconPresetsPopover = popover
-        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
-    }
-
-    /// Draws a fresh random dozen into `currentIconPresets` — the only place
-    /// that ever changes — and pushes it onto `iconPresetButtons` in place.
-    /// `shuffled()` on the whole pool before taking a `prefix` gives both a
-    /// random subset *and* a random order in one step.
-    @objc private func shuffleMenuBarIconPresets() {
-        currentIconPresets = Array(Self.menuBarIconPool.shuffled().prefix(Self.presetsShown))
-        for (button, icon) in zip(iconPresetButtons, currentIconPresets) {
-            button.title = icon
-            button.identifier = NSUserInterfaceItemIdentifier(icon)
+        stack.addArrangedSubview(header("Accounts"))
+        stack.addArrangedSubview(buildAccounts())
+        let orderHint = NSTextField(labelWithString: "Drag accounts to reorder. Click a label to rename it.")
+        orderHint.textColor = .secondaryLabelColor
+        orderHint.font = .systemFont(ofSize: 11)
+        stack.addArrangedSubview(orderHint)
+        stack.addArrangedSubview(header("Display"))
+        let display = NSStackView()
+        display.orientation = .vertical
+        display.alignment = .leading
+        display.spacing = 12
+        display.addArrangedSubview(setting("Show accounts as", control: segments(
+            ["Icons", "Labels"], selected: app.config.display.accounts == .icons ? 0 : 1,
+            action: #selector(changeAccountStyle(_:))
+        )))
+        display.addArrangedSubview(setting("Percentages", control: segments(
+            ["Remaining", "Used"], selected: app.config.display.percentages == .remaining ? 0 : 1,
+            action: #selector(changePercentages(_:))
+        )))
+        display.addArrangedSubview(setting("Reset times", control: segments(
+            ["Countdown", "Exact time"], selected: app.config.display.resets == .countdown ? 0 : 1,
+            action: #selector(changeResets(_:))
+        )))
+        let slider = NSSlider(value: app.config.warnThreshold, minValue: 50, maxValue: 95,
+                              target: self, action: #selector(changeThreshold(_:)))
+        slider.isContinuous = true
+        slider.setAccessibilityLabel("Warning threshold, percent used")
+        slider.widthAnchor.constraint(equalToConstant: 150).isActive = true
+        thresholdCaption.font = .systemFont(ofSize: 11)
+        thresholdCaption.textColor = .secondaryLabelColor
+        display.addArrangedSubview(setting("Warning threshold", control: row([slider, thresholdCaption])))
+        let previewScroll = NSScrollView()
+        previewScroll.documentView = preview
+        previewScroll.hasHorizontalScroller = true
+        previewScroll.autohidesScrollers = true
+        previewScroll.widthAnchor.constraint(equalToConstant: 440).isActive = true
+        previewScroll.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        display.addArrangedSubview(setting("Menu bar preview", control: previewScroll))
+        stack.addArrangedSubview(display)
+        stack.addArrangedSubview(header("General"))
+        let login = NSButton(checkboxWithTitle: "Launch at login", target: self,
+                             action: #selector(toggleLogin(_:)))
+        login.state = !AppDelegate.isDemo && LaunchAtLogin.isEnabled ? .on : .off
+        login.isEnabled = !AppDelegate.isDemo && LaunchAtLogin.isSupported
+        login.toolTip = AppDelegate.isDemo ? "Disabled in offline demo" : "Requires a bundled Yacht.app"
+        stack.addArrangedSubview(login)
+        if app.config.accounts.contains(where: { $0.provider == .codex }) && app.resolvedCodexBinaryURL == nil {
+            stack.addArrangedSubview(NSButton(title: "Locate Codex executable…", target: self,
+                                             action: #selector(locateCodex)))
         }
+        refreshPreview()
     }
 
-    /// Mirrors `syncMenuBarMaxAccountsControls`: pushes the current value to the
-    /// field wherever it is in the stack, so a preset click updates it in place.
-    private func syncMenuBarIconField() {
-        for case let field as NSTextField in stack.arrangedSubviews
-            .compactMap({ ($0 as? NSStackView)?.arrangedSubviews }).joined()
-        where field.identifier?.rawValue == "menubar-icon" {
-            field.stringValue = app.config.menuBarIcon
+    private func fitWindowToContents() {
+        guard let window else { return }
+        window.contentView?.layoutSubtreeIfNeeded()
+        let size = NSSize(width: 660, height: ceil(settingsStack.fittingSize.height) + 36)
+        var frame = window.frameRect(forContentRect: NSRect(origin: .zero, size: size))
+        frame.origin = NSPoint(x: window.frame.minX, y: window.frame.maxY - frame.height)
+        window.setFrame(frame, display: true)
+    }
+
+    private func buildAccounts() -> NSView {
+        table.headerView = AccountsHeaderView(frame: NSRect(x: 0, y: 0, width: 620, height: 24))
+        table.cornerView = NSTableHeaderView()
+        table.style = .plain
+        table.rowHeight = 36
+        table.intercellSpacing = .zero
+        table.usesAlternatingRowBackgroundColors = false
+        table.backgroundColor = .clear
+        table.gridStyleMask = .solidHorizontalGridLineMask
+        table.allowsMultipleSelection = false
+        table.allowsColumnReordering = false
+        table.allowsColumnResizing = true
+        table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
+        for (id, title, width) in [("move", "", 28.0), ("account", "Account", 308.0),
+                                    ("provider", "Provider", 130.0), ("window", "Menu bar", 130.0)] {
+            let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
+            column.title = title
+            let heading = NSMutableAttributedString(attributedString: column.headerCell.attributedStringValue)
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.firstLineHeadIndent = 8
+            paragraph.headIndent = 8
+            paragraph.tailIndent = -8
+            heading.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: heading.length))
+            column.headerCell.attributedStringValue = heading
+            column.width = width
+            column.minWidth = id == "move" ? 28 : (id == "provider" ? 90 : 120)
+            column.resizingMask = id == "move" ? [] : [.userResizingMask, .autoresizingMask]
+            table.addTableColumn(column)
         }
+        table.dataSource = self
+        table.delegate = self
+        table.setAccessibilityLabel("Accounts in display order")
+        table.registerForDraggedTypes([dragType])
+        table.setDraggingSourceOperationMask(.move, forLocal: true)
+        let scroll = NSScrollView()
+        scroll.documentView = table
+        scroll.hasVerticalScroller = true
+        scroll.hasHorizontalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.borderType = .noBorder
+        scroll.drawsBackground = false
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        accountsHeight = scroll.heightAnchor.constraint(equalToConstant: 24 + 36 * CGFloat(max(1, min(6, app.config.accounts.count))))
+        accountsHeight?.isActive = true
+
+        let group = NSBox()
+        group.boxType = .custom
+        group.borderWidth = 0
+        group.cornerRadius = 12
+        group.fillColor = .quaternaryLabelColor
+        group.isTransparent = false
+        group.contentViewMargins = .zero
+        group.wantsLayer = true
+        group.layer?.cornerRadius = 12
+        group.layer?.masksToBounds = true
+        group.widthAnchor.constraint(equalToConstant: 620).isActive = true
+        let content = group.contentView!
+
+        let footer = NSBox()
+        footer.boxType = .custom
+        footer.borderWidth = 0
+        footer.fillColor = .quaternaryLabelColor
+        footer.isTransparent = false
+        footer.contentViewMargins = .zero
+        footer.translatesAutoresizingMaskIntoConstraints = false
+        let add = NSButton(title: "+", target: self, action: #selector(addAccount))
+        add.setAccessibilityLabel("Add account")
+        removeButton.target = self
+        removeButton.action = #selector(removeAccount)
+        removeButton.setAccessibilityLabel("Remove selected account")
+        removeButton.isEnabled = false
+        for (button, symbol) in [(add, "plus"), (removeButton, "minus")] {
+            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: button.title)
+            button.imagePosition = .imageOnly
+            button.isBordered = false
+            button.widthAnchor.constraint(equalToConstant: 24).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        }
+        let divider = NSBox()
+        divider.boxType = .separator
+        divider.widthAnchor.constraint(equalToConstant: 1).isActive = true
+        divider.heightAnchor.constraint(equalToConstant: 18).isActive = true
+        tapButton.target = self
+        tapButton.action = #selector(installTap(_:))
+        tapButton.controlSize = .small
+        tapButton.bezelStyle = .inline
+        tapButton.isHidden = true
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        folderPath.font = .systemFont(ofSize: 11)
+        folderPath.textColor = .secondaryLabelColor
+        folderPath.lineBreakMode = .byTruncatingMiddle
+        folderPath.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        folderPath.setAccessibilityLabel("Selected account folder")
+        let controls = row([add, divider, removeButton, tapButton, spacer, folderPath])
+        controls.spacing = 4
+        controls.translatesAutoresizingMaskIntoConstraints = false
+        footer.contentView!.addSubview(controls)
+        let separator = NSBox()
+        separator.boxType = .separator
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(scroll)
+        content.addSubview(footer)
+        content.addSubview(separator)
+        NSLayoutConstraint.activate([
+            group.heightAnchor.constraint(equalTo: scroll.heightAnchor, constant: 30),
+            scroll.topAnchor.constraint(equalTo: content.topAnchor),
+            scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            footer.topAnchor.constraint(equalTo: scroll.bottomAnchor),
+            footer.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            footer.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            footer.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            footer.heightAnchor.constraint(equalToConstant: 30),
+            separator.topAnchor.constraint(equalTo: footer.topAnchor),
+            separator.leadingAnchor.constraint(equalTo: footer.leadingAnchor),
+            separator.trailingAnchor.constraint(equalTo: footer.trailingAnchor),
+            controls.leadingAnchor.constraint(equalTo: footer.contentView!.leadingAnchor, constant: 8),
+            controls.trailingAnchor.constraint(equalTo: footer.contentView!.trailingAnchor, constant: -12),
+            controls.centerYAnchor.constraint(equalTo: footer.contentView!.centerYAnchor),
+        ])
+        updateAccountFooter()
+        return group
     }
 
-    private func menuBarTemplateRow() -> NSView {
-        let field = NSTextField(string: app.config.menuBarTemplate)
-        field.identifier = NSUserInterfaceItemIdentifier("menubar-template")
-        field.delegate = self
-        field.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        field.widthAnchor.constraint(equalToConstant: 220).isActive = true
-        let reset = NSButton(title: "Reset", target: self, action: #selector(resetMenuBarTemplate))
-        return row([field, reset])
-    }
-
-    private func menuBarNoDataTemplateRow() -> NSView {
-        let field = NSTextField(string: app.config.menuBarNoDataTemplate)
-        field.identifier = NSUserInterfaceItemIdentifier("menubar-nodata-template")
-        field.delegate = self
-        field.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        field.widthAnchor.constraint(equalToConstant: 220).isActive = true
-        let reset = NSButton(
-            title: "Reset", target: self, action: #selector(resetMenuBarNoDataTemplate)
-        )
-        return row([field, reset])
-    }
-
-    /// No width-based fallback and no font distinct from its own row: a separator
-    /// is typically one or two glyphs, not a template, so it gets a narrow field.
-    private func menuBarSeparatorRow() -> NSView {
-        let field = NSTextField(string: app.config.menuBarSeparator)
-        field.identifier = NSUserInterfaceItemIdentifier("menubar-separator")
-        field.delegate = self
-        field.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        field.widthAnchor.constraint(equalToConstant: 60).isActive = true
-        let reset = NSButton(title: "Reset", target: self, action: #selector(resetMenuBarSeparator))
-        return row([field, reset])
-    }
-
-    /// A typed number and the stepper stay in sync (`syncMenuBarMaxAccountsControls`
-    /// pushes to whichever one didn't just change) — a stepper alone has no visible
-    /// number to type into, and a field alone has no click-to-nudge.
-    private func menuBarMaxAccountsRow() -> NSView {
-        let field = NSTextField(string: "\(app.config.menuBarMaxAccounts)")
-        field.identifier = NSUserInterfaceItemIdentifier("menubar-max-accounts-field")
-        field.delegate = self
-        field.alignment = .center
-        field.widthAnchor.constraint(equalToConstant: 40).isActive = true
-
-        let stepper = NSStepper()
-        stepper.identifier = NSUserInterfaceItemIdentifier("menubar-max-accounts-stepper")
-        stepper.minValue = 0
-        stepper.maxValue = 20
-        stepper.integerValue = app.config.menuBarMaxAccounts
-        stepper.target = self
-        stepper.action = #selector(menuBarMaxAccountsChanged(_:))
-
-        return row([field, stepper, dimmed("0 = no limit")])
-    }
-
-    /// Pushes the current value to both controls, wherever they are in the stack —
-    /// mirrors how `thresholdChanged` updates its label in place, so neither
-    /// control gets torn out from under an in-progress click or keystroke.
-    private func syncMenuBarMaxAccountsControls() {
-        let n = app.config.menuBarMaxAccounts
-        for view in stack.arrangedSubviews.compactMap({ ($0 as? NSStackView)?.arrangedSubviews }).joined() {
-            if let field = view as? NSTextField, field.identifier?.rawValue == "menubar-max-accounts-field" {
-                field.integerValue = n
+    func refreshPreview() {
+        preview.update(app.presentation, style: app.config.display.accounts)
+        let remaining = app.config.display.percentages == .remaining
+        let warn = remaining ? 100 - app.config.warnThreshold : app.config.warnThreshold
+        let critical = remaining ? 100 - app.config.settings.criticalThreshold : app.config.settings.criticalThreshold
+        func number(_ n: Double) -> String { n == n.rounded() ? String(Int(n)) : String(format: "%.1f", n) }
+        thresholdCaption.stringValue = "orange at \(number(warn))%, red at \(number(critical))% \(remaining ? "left" : "used")"
+        let reported = app.states.reduce(into: [String: [UsageWindow]]()) {
+            $0[$1.account.configDir.path] = $1.snapshot?.rows.map(\.window) ?? []
+        }
+        if reported != knownWindows {
+            knownWindows = reported
+            if table.numberOfColumns > 3 {
+                table.reloadData(forRowIndexes: IndexSet(integersIn: 0..<min(table.numberOfRows, app.config.accounts.count)),
+                                 columnIndexes: IndexSet(integer: 3))
             }
-            if let stepper = view as? NSStepper,
-               stepper.identifier?.rawValue == "menubar-max-accounts-stepper" {
-                stepper.integerValue = n
+        }
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int { app.config.accounts.count }
+
+    func tableView(_ tableView: NSTableView, viewFor column: NSTableColumn?, row index: Int) -> NSView? {
+        guard app.config.accounts.indices.contains(index) else { return nil }
+        let account = app.config.accounts[index]
+        switch column?.identifier.rawValue {
+        case "move":
+            let cell = NSTableCellView()
+            let icon = NSImageView(image: NSImage(systemSymbolName: "line.3.horizontal", accessibilityDescription: "Drag to reorder")!)
+            icon.translatesAutoresizingMaskIntoConstraints = false
+            icon.contentTintColor = .secondaryLabelColor
+            cell.imageView = icon
+            cell.addSubview(icon)
+            NSLayoutConstraint.activate([
+                icon.centerXAnchor.constraint(equalTo: cell.centerXAnchor),
+                icon.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                icon.widthAnchor.constraint(equalToConstant: 11),
+                icon.heightAnchor.constraint(equalToConstant: 11),
+            ])
+            return cell
+        case "account":
+            let cell = AccountNameCell(account: account)
+            cell.textField?.delegate = self
+            return cell
+        case "provider":
+            let container = NSTableCellView()
+            let label = NSTextField(labelWithString: account.provider.displayName)
+            label.translatesAutoresizingMaskIntoConstraints = false
+            label.font = .systemFont(ofSize: 13)
+            container.textField = label
+            container.addSubview(label)
+            NSLayoutConstraint.activate([
+                label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                label.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
+                label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            ])
+            return container
+        case "window":
+            let popup = AccountWindowPopup()
+            popup.isBordered = false
+            popup.font = .systemFont(ofSize: 13)
+            popup.accountPath = account.configDir
+            let state = app.states.first { $0.account.configDir == account.configDir }
+            let primary = state?.snapshot?.primary ?? account.provider.defaultPrimaryWindow
+            let selected = account.menuBarWindow ?? primary
+            var windows = state?.snapshot?.rows.map(\.window) ?? []
+            if windows.isEmpty { windows = [primary] }
+            if !windows.contains(selected) { windows.append(selected) }
+            popup.windows = windows
+            popup.addItems(withTitles: windows.map { $0 == .weekly ? "Weekly" : $0.defaultLabel } + ["Off"])
+            popup.selectItem(at: account.showInMenuBar ? (windows.firstIndex(of: selected) ?? 0) : windows.count)
+            popup.target = self
+            popup.action = #selector(changeWindow(_:))
+            popup.setAccessibilityLabel("Menu bar window for \(account.label)")
+            popup.toolTip = "Off hides only this menu bar figure; the dropdown still shows all usage."
+            return AccountWindowCell(popup: popup)
+        default: return nil
+        }
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        updateAccountFooter()
+    }
+
+    private var selectedAccount: Account? {
+        app.config.accounts.indices.contains(table.selectedRow) ? app.config.accounts[table.selectedRow] : nil
+    }
+
+    private func updateAccountFooter() {
+        let account = selectedAccount
+        removeButton.isEnabled = account != nil
+        folderPath.stringValue = account.map { abbreviate($0.configDir) } ?? ""
+        folderPath.toolTip = account?.configDir.path
+        tapButton.isHidden = true
+        tapButton.identifier = nil
+        if let account, account.provider.usesTap, !AppDelegate.isDemo {
+            let status = TapInstaller.detect(configDir: account.configDir, tapCommand: AppDelegate.tapCommand)
+            if status != .installed {
+                tapButton.isHidden = false
+                tapButton.identifier = NSUserInterfaceItemIdentifier(account.configDir.path)
+                tapButton.title = "Install Tap…"
+                if case .foreign = status { tapButton.title = "Replace Tap…" }
             }
         }
     }
 
-    // MARK: - Actions
-
-    @objc private func addDiscovered(_ sender: NSButton) {
-        guard let path = sender.identifier?.rawValue else { return }
-        register(URL(fileURLWithPath: path), provider: .claude)
-    }
-
-    /// Provider selection is the first step. Only after the user continues do
-    /// we ask for that provider's account directory.
-    @objc private func addAccount() {
-        let providers = Provider.allCases
-        let picker = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 220, height: 26))
-        picker.addItems(withTitles: providers.map(\.displayName))
-
-        let alert = NSAlert()
-        alert.messageText = "Add Account"
-        alert.informativeText = "Choose the provider for this account."
-        alert.accessoryView = picker
-        alert.addButton(withTitle: "Continue")
-        alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn,
-              providers.indices.contains(picker.indexOfSelectedItem)
-        else { return }
-
-        chooseFolder(for: providers[picker.indexOfSelectedItem])
-    }
-
-    private func chooseFolder(for provider: Provider) {
-        let panel = NSOpenPanel()
-        panel.title = "Choose \(provider.configDirectoryLabel)"
-        panel.message = "Choose the \(provider.configDirectoryLabel.lowercased()) for this account."
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.showsHiddenFiles = true  // config dirs are dotfiles
-        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
-        panel.prompt = "Register"
-        if panel.runModal() == .OK, let url = panel.url {
-            register(url, provider: provider)
+    private func reloadAccounts(selecting path: URL?) {
+        table.reloadData()
+        accountsHeight?.constant = 24 + 36 * CGFloat(max(1, min(6, app.config.accounts.count)))
+        if let path, let index = app.config.accounts.firstIndex(where: { $0.configDir == path }) {
+            table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        } else {
+            table.deselectAll(nil)
         }
+        updateAccountFooter()
+        fitWindowToContents()
     }
 
-    private func register(_ dir: URL, provider: Provider) {
-        var label = dir.lastPathComponent
-        if label.hasPrefix(".") { label.removeFirst() }
-        app.update {
-            $0.accounts.append(Account(provider: provider, label: label, configDir: dir))
-        }
-        reload()
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
+        guard app.config.accounts.indices.contains(row) else { return nil }
+        let item = NSPasteboardItem()
+        item.setString(app.config.accounts[row].configDir.path, forType: dragType)
+        return item
     }
-
-    @objc private func removeAccount(_ sender: NSButton) {
-        guard let path = sender.identifier?.rawValue else { return }
-        app.update { $0.remove(configDir: URL(fileURLWithPath: path)) }
-        reload()
+    func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo,
+                   proposedRow row: Int, proposedDropOperation operation: NSTableView.DropOperation) -> NSDragOperation {
+        guard info.draggingSource as? NSTableView === table else { return [] }
+        table.setDropRow(row, dropOperation: .above)
+        return .move
     }
-
-    @objc private func installTap(_ sender: NSButton) {
-        guard let path = sender.identifier?.rawValue,
-              let account = app.config.account(configDir: URL(fileURLWithPath: path))
-        else { return }
-        do {
-            try app.installTap(for: account)
-        } catch {
-            let alert = NSAlert()
-            alert.messageText = "Could not install the tap"
-            alert.informativeText = error is TapInstallerError
-                ? "\(abbreviate(account.configDir))/settings.json could not be parsed, so it was left untouched. Fix the file and try again."
-                : "\(error)"
-            alert.runModal()
-        }
-        reload()
-    }
-
-    @objc private func toggleLaunchAtLogin(_ sender: NSButton) {
-        do {
-            try LaunchAtLogin.setEnabled(sender.state == .on)
-        } catch {
-            let alert = NSAlert()
-            alert.messageText = "Could not change the login item"
-            alert.informativeText = "\(error)"
-            alert.runModal()
-        }
-        // Snap the checkbox back to what the system actually holds now — whether
-        // the change took or not, the box tells the truth.
-        sender.state = LaunchAtLogin.isEnabled ? .on : .off
-    }
-
-    @objc private func thresholdChanged(_ sender: NSSlider) {
-        app.update { $0.warnThreshold = sender.doubleValue.rounded() }
-        // Update the caption in place; a full reload would tear the slider out
-        // from under the drag.
-        for case let text as NSTextField in stack.arrangedSubviews
-            .compactMap({ ($0 as? NSStackView)?.arrangedSubviews }).joined()
-        where text.identifier?.rawValue == "threshold-label" {
-            text.stringValue = thresholdText()
-        }
-    }
-
-    @objc private func toggleShowMenuBarIcon(_ sender: NSButton) {
-        app.update { $0.showMenuBarIcon = sender.state == .on }
-    }
-
-    @objc private func pickMenuBarIcon(_ sender: NSButton) {
-        guard let icon = sender.identifier?.rawValue else { return }
-        app.update { $0.menuBarIcon = icon }
-        syncMenuBarIconField()
-        iconPresetsPopover?.close()
-        iconPresetsPopover = nil
-        iconPresetButtons = []
-    }
-
-    @objc private func resetMenuBarIcon() {
-        app.update { $0.menuBarIcon = AppSettings.defaultMenuBarIcon }
-        syncMenuBarIconField()
-    }
-
-    @objc private func resetMenuBarTemplate() {
-        app.update { $0.menuBarTemplate = AppSettings.defaultMenuBarTemplate }
-        reload()
-    }
-
-    @objc private func resetMenuBarNoDataTemplate() {
-        app.update { $0.menuBarNoDataTemplate = AppSettings.defaultMenuBarNoDataTemplate }
-        reload()
-    }
-
-    @objc private func resetMenuBarSeparator() {
-        app.update { $0.menuBarSeparator = AppSettings.defaultMenuBarSeparator }
-        reload()
-    }
-
-    @objc private func menuBarMaxAccountsChanged(_ sender: NSStepper) {
-        app.update { $0.menuBarMaxAccounts = sender.integerValue }
-        syncMenuBarMaxAccountsControls()
-    }
-
-    /// Closing the window with a label field still being edited would otherwise
-    /// drop the pending rename — `controlTextDidEndEditing` never fires because
-    /// editing never "ended." Resigning first responder ends it, committing the
-    /// edit through the same path. This is why no Save button is needed.
-    func windowWillClose(_ notification: Notification) {
+    func tableView(_ tableView: NSTableView, acceptDrop info: NSDraggingInfo,
+                   row: Int, dropOperation: NSTableView.DropOperation) -> Bool {
+        guard let path = info.draggingPasteboard.string(forType: dragType) else { return false }
         window?.makeFirstResponder(nil)
+        let directory = URL(fileURLWithPath: path)
+        app.update { $0.moveAccount(configDir: directory, before: row) }
+        reloadAccounts(selecting: directory)
+        return true
     }
-
-    @objc private func resetRowTemplate() {
-        app.update { $0.rowTemplate = AppSettings.defaultRowTemplate }
-        reload()
+    func controlTextDidBeginEditing(_ notification: Notification) {
+        guard let field = notification.object as? GrowingAccountLabelField else { return }
+        let index = table.row(for: field)
+        if index >= 0 {
+            table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        }
     }
-
-    @objc private func autoDetectCodexBinary() {
-        app.update { $0.codexBinaryPath = nil }
-        reload()
-    }
-
-    /// Every editable field lands here, told apart by identifier. This
-    /// notification can arrive *after* the click that removed the very account
-    /// being edited — hence the rename by config directory, which finds nothing
-    /// and does nothing when that account is gone.
     func controlTextDidEndEditing(_ notification: Notification) {
         guard let field = notification.object as? NSTextField,
-              let id = field.identifier?.rawValue else { return }
-
-        // Not trimmed: unlike the templates below, whitespace *is* the separator's
-        // content — a lone space is a legitimate, common choice, and trimming it
-        // would silently turn "a space" into "nothing" without the user asking.
-        // Empty is also left alone here, for the same reason: pressing accounts
-        // together with no separator at all is a real choice, not a mistake.
-        if id == "menubar-separator" {
-            app.update { $0.menuBarSeparator = field.stringValue }
-            return
-        }
-
-        let text = field.stringValue.trimmingCharacters(in: .whitespaces)
-
-        // An emptied template field means "give me the default back," not "render
-        // an empty row" — a blank template would leave the account with nothing
-        // shown and no way to tell why.
-        switch id {
-        case "codex-binary-path":
-            app.update {
-                $0.codexBinaryPath = text.isEmpty
-                    ? nil
-                    : NSString(string: text).expandingTildeInPath
+              let path = field.identifier?.rawValue else { return }
+        let value = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = URL(fileURLWithPath: path)
+        if value.isEmpty { field.stringValue = app.config.account(configDir: url)?.label ?? "" }
+        else {
+            field.stringValue = value
+            app.update { $0.relabel(configDir: url, to: value) }
+            let index = table.row(for: field)
+            if index >= 0 {
+                table.reloadData(forRowIndexes: IndexSet(integer: index), columnIndexes: IndexSet(integer: 3))
             }
-            reload()
-        case "row-template":
-            app.update { $0.rowTemplate = text.isEmpty ? AppSettings.defaultRowTemplate : text }
-            field.stringValue = app.config.rowTemplate
-        case "menubar-template":
-            app.update { $0.menuBarTemplate = text.isEmpty ? AppSettings.defaultMenuBarTemplate : text }
-            field.stringValue = app.config.menuBarTemplate
-        case "menubar-nodata-template":
-            app.update {
-                $0.menuBarNoDataTemplate = text.isEmpty ? AppSettings.defaultMenuBarNoDataTemplate : text
-            }
-            field.stringValue = app.config.menuBarNoDataTemplate
-        case "menubar-icon":
-            // `prefix(1)` on a `String` takes one grapheme cluster, not one UTF-16
-            // unit — an emoji built from several scalars (a flag, a skin-tone
-            // modifier) still comes through whole rather than split mid-glyph.
-            app.update {
-                $0.menuBarIcon = text.isEmpty ? AppSettings.defaultMenuBarIcon : String(text.prefix(1))
-            }
-            field.stringValue = app.config.menuBarIcon
-        case "menubar-max-accounts-field":
-            // Anything that isn't a number in range — blank, "abc", "-3" — settles
-            // back on the current value rather than erroring or going negative.
-            let n = max(0, min(20, Int(text) ?? app.config.menuBarMaxAccounts))
-            app.update { $0.menuBarMaxAccounts = n }
-            syncMenuBarMaxAccountsControls()
-        default:
-            guard id.hasPrefix("label:"), !text.isEmpty else { return }
-            let dir = URL(fileURLWithPath: String(id.dropFirst("label:".count)))
-            app.update { $0.relabel(configDir: dir, to: text) }
         }
     }
+    func windowWillClose(_ notification: Notification) { window?.makeFirstResponder(nil) }
 
-    // MARK: - Small helpers
-
-    private func row(_ views: [NSView]) -> NSStackView {
-        let row = NSStackView(views: views)
-        row.orientation = .horizontal
-        row.spacing = 8
-        return row
+    @objc private func changeWindow(_ sender: AccountWindowPopup) {
+        guard let index = app.config.accounts.firstIndex(where: { $0.configDir == sender.accountPath }) else { return }
+        table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+        app.update {
+            $0.accounts[index].showInMenuBar = sender.indexOfSelectedItem < sender.windows.count
+            if $0.accounts[index].showInMenuBar {
+                $0.accounts[index].menuBarWindow = sender.windows[sender.indexOfSelectedItem]
+            }
+        }
+    }
+    @objc private func changeAccountStyle(_ sender: NSSegmentedControl) {
+        app.update { $0.display.accounts = sender.selectedSegment == 0 ? .icons : .labels }
+    }
+    @objc private func changePercentages(_ sender: NSSegmentedControl) {
+        app.update { $0.display.percentages = sender.selectedSegment == 0 ? .remaining : .used }
+    }
+    @objc private func changeResets(_ sender: NSSegmentedControl) {
+        app.update { $0.display.resets = sender.selectedSegment == 0 ? .countdown : .exactTime }
+    }
+    @objc private func changeThreshold(_ sender: NSSlider) {
+        app.update { $0.warnThreshold = sender.doubleValue.rounded() }
+    }
+    @objc private func toggleLogin(_ sender: NSButton) {
+        guard !AppDelegate.isDemo else { return }
+        do { try LaunchAtLogin.setEnabled(sender.state == .on) }
+        catch { NSAlert(error: error).runModal() }
+        sender.state = LaunchAtLogin.isEnabled ? .on : .off
+    }
+    @objc private func locateCodex() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.title = "Choose the Codex executable"
+        guard let window else { return }
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.app.update { $0.codexBinaryPath = url.path }
+        }
+    }
+    @objc private func installTap(_ sender: NSButton) {
+        guard !AppDelegate.isDemo, let path = sender.identifier?.rawValue,
+              let account = app.config.account(configDir: URL(fileURLWithPath: path)) else { return }
+        if case .foreign = TapInstaller.detect(configDir: account.configDir, tapCommand: AppDelegate.tapCommand) {
+            let alert = NSAlert()
+            alert.messageText = "Replace this account’s status line?"
+            alert.informativeText = "Yacht will replace the existing status-line command with its usage tap."
+            alert.addButton(withTitle: "Replace")
+            alert.addButton(withTitle: "Cancel")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        do { try app.installTap(for: account) }
+        catch { NSAlert(error: error).runModal() }
+        updateAccountFooter()
+    }
+    @objc private func removeAccount() {
+        window?.makeFirstResponder(nil)
+        guard app.config.accounts.indices.contains(table.selectedRow) else { return }
+        let index = table.selectedRow
+        let account = app.config.accounts[index]
+        app.update { $0.remove(configDir: account.configDir) }
+        let next = app.config.accounts.isEmpty ? nil : app.config.accounts[min(index, app.config.accounts.count - 1)].configDir
+        reloadAccounts(selecting: next)
+    }
+    @objc private func addAccount() {
+        guard let window else { return }
+        window.makeFirstResponder(nil)
+        let previousSelection = selectedAccount?.configDir
+        let existingPaths = Set(app.config.accounts.map(\.configDir))
+        let controller = AddAccountController(app: app) { [weak self] in
+            guard let self else { return }
+            let added = self.app.config.accounts.first { !existingPaths.contains($0.configDir) }
+            self.reloadAccounts(selecting: added?.configDir ?? previousSelection)
+            self.addController = nil
+        }
+        addController = controller
+        window.beginSheet(controller.window!)
     }
 
-    /// A section title — the only bold text in the window, so "General",
-    /// "Accounts", and "Advanced" read as the three groupings and nothing inside
-    /// them competes for that weight.
-    private func header(_ text: String) -> NSTextField {
-        let label = NSTextField(labelWithString: text)
-        label.font = .boldSystemFont(ofSize: 13)
-        return label
+    private func segments(_ labels: [String], selected: Int, action: Selector) -> NSSegmentedControl {
+        let control = NSSegmentedControl(labels: labels, trackingMode: .selectOne, target: self, action: action)
+        control.selectedSegment = selected
+        return control
     }
-
-    /// A field's name, sitting above its control within a section — lighter than
-    /// a section header, since it isn't one.
-    private func caption(_ text: String) -> NSTextField {
-        NSTextField(labelWithString: text)
+    private func setting(_ title: String, control: NSView) -> NSView {
+        let label = NSTextField(labelWithString: title)
+        label.widthAnchor.constraint(equalToConstant: 160).isActive = true
+        return row([label, control])
     }
+}
 
-    /// A caption with a small "ⓘ" beside it that reveals `variables` in a popover
-    /// on click, under a bold "Available variables" title — this is the
-    /// template's token list, useful once and then just visual noise if left as
-    /// a permanent line under the field.
-    private func captionRow(_ text: String, variables: String) -> NSView {
-        let button = InfoButton()
-        button.image = NSImage(
-            systemSymbolName: "info.circle", accessibilityDescription: "More info"
-        )
-        button.bezelStyle = .regularSquare
-        button.isBordered = false
-        button.imagePosition = .imageOnly
-        button.helpText = variables
-        button.target = self
-        button.action = #selector(showHelp(_:))
-        return row([caption(text), button])
+private final class AccountsTableView: NSTableView {
+    // Label fields should edit on the first click, without the table's
+    // deferred focus used for row selection and double-click actions.
+    override func validateProposedFirstResponder(_ responder: NSResponder, for event: NSEvent?) -> Bool {
+        if let field = responder as? NSTextField, field.isEditable, field.isEnabled,
+           row(for: field) >= 0 {
+            return true
+        }
+        return super.validateProposedFirstResponder(responder, for: event)
     }
+}
 
-    @objc private func showHelp(_ sender: InfoButton) {
-        let title = NSTextField(labelWithString: "Available variables")
-        title.font = .boldSystemFont(ofSize: 12)
+private final class AccountWindowPopup: NSPopUpButton {
+    var accountPath = URL(fileURLWithPath: "/")
+    var windows: [UsageWindow] = []
+}
 
-        let body = NSTextField(wrappingLabelWithString: sender.helpText)
-        body.font = .systemFont(ofSize: 12)
-        body.preferredMaxLayoutWidth = 260
+final class AddAccountController: NSWindowController, NSTextFieldDelegate {
+    private unowned let app: AppDelegate
+    private let completion: () -> Void
+    private let provider = NSPopUpButton()
+    private let folder = NSTextField()
+    private let label = NSTextField()
+    private let found = NSStackView()
+    private let validation = NSTextField(labelWithString: "")
+    private let add = NSButton(title: "Add Account", target: nil, action: nil)
 
-        let content = NSStackView(views: [title, body])
-        content.orientation = .vertical
-        content.alignment = .leading
-        content.spacing = 4
-        content.translatesAutoresizingMaskIntoConstraints = false
-
-        let container = NSView()
-        container.addSubview(content)
+    init(app: AppDelegate, completion: @escaping () -> Void) {
+        self.app = app
+        self.completion = completion
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 400),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        super.init(window: window)
+        window.title = "Add Account"
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 14
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        window.contentView!.addSubview(stack)
         NSLayoutConstraint.activate([
-            // The width has to be pinned explicitly, not just capped via
-            // preferredMaxLayoutWidth: that only bounds how a wrapping label's
-            // *height* is computed, so without a real width constraint on `body`
-            // neither it, the stack around it, nor the popover built from that
-            // has any way to settle on a size — it collapses to a sliver instead
-            // of wrapping at 260pt.
-            body.widthAnchor.constraint(equalToConstant: 260),
-            content.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
-            content.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12),
-            content.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
-            content.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+            stack.leadingAnchor.constraint(equalTo: window.contentView!.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: window.contentView!.trailingAnchor, constant: -24),
+            stack.topAnchor.constraint(equalTo: window.contentView!.topAnchor, constant: 20),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: window.contentView!.bottomAnchor, constant: -16),
         ])
-
-        let controller = NSViewController()
-        controller.view = container
-        let popover = NSPopover()
-        popover.contentViewController = controller
-        popover.behavior = .transient  // dismisses on the next click elsewhere
-        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .maxY)
+        stack.addArrangedSubview(header("Add Account"))
+        provider.addItems(withTitles: Provider.allCases.map(\.displayName))
+        provider.target = self
+        provider.action = #selector(providerChanged)
+        stack.addArrangedSubview(field("Provider", provider))
+        folder.placeholderString = "Account folder"
+        folder.setAccessibilityLabel("Account folder")
+        folder.delegate = self
+        folder.widthAnchor.constraint(equalToConstant: 270).isActive = true
+        let choose = NSButton(title: "Choose…", target: self, action: #selector(chooseFolder))
+        stack.addArrangedSubview(field("Folder", row([folder, choose])))
+        label.placeholderString = "Work"
+        label.setAccessibilityLabel("Account label")
+        label.delegate = self
+        label.widthAnchor.constraint(equalToConstant: 270).isActive = true
+        stack.addArrangedSubview(field("Label", label))
+        let help = NSTextField(wrappingLabelWithString:
+            "Choose an existing profile signed in through the provider’s CLI. Use a separate folder for each account. Claude profiles offer an optional usage tap after adding.")
+        help.font = .systemFont(ofSize: 11)
+        help.textColor = .secondaryLabelColor
+        help.widthAnchor.constraint(equalToConstant: 452).isActive = true
+        stack.addArrangedSubview(help)
+        stack.addArrangedSubview(header("Found on this Mac"))
+        found.orientation = .vertical
+        found.alignment = .leading
+        found.spacing = 4
+        let discoveryScroll = NSScrollView()
+        discoveryScroll.documentView = found
+        discoveryScroll.hasVerticalScroller = true
+        discoveryScroll.widthAnchor.constraint(equalToConstant: 452).isActive = true
+        discoveryScroll.heightAnchor.constraint(equalToConstant: 64).isActive = true
+        stack.addArrangedSubview(discoveryScroll)
+        validation.font = .systemFont(ofSize: 11)
+        validation.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(validation)
+        add.target = self
+        add.action = #selector(submit)
+        add.keyEquivalent = "\r"
+        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancel))
+        cancel.keyEquivalent = "\u{1b}"
+        let spacer = NSView()
+        let buttons = row([spacer, cancel, add])
+        stack.addArrangedSubview(buttons)
+        buttons.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        providerChanged()
     }
-
-    private func dimmed(_ text: String) -> NSTextField {
-        let label = NSTextField(labelWithString: text)
-        label.textColor = .secondaryLabelColor
-        label.lineBreakMode = .byTruncatingMiddle
-        return label
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    private var selectedProvider: Provider { Provider.allCases[provider.indexOfSelectedItem] }
+    private var selectedURL: URL {
+        URL(fileURLWithPath: NSString(string: folder.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)).expandingTildeInPath).standardizedFileURL
     }
-
-    private func warning(_ text: String) -> NSTextField {
-        let label = NSTextField(labelWithString: text)
-        label.textColor = .systemOrange
-        return label
+    private func field(_ name: String, _ control: NSView) -> NSView {
+        let title = NSTextField(labelWithString: name)
+        title.widthAnchor.constraint(equalToConstant: 62).isActive = true
+        return row([title, control])
     }
-
-    /// A full-width rule between sections. Constrained explicitly: the stack
-    /// itself sizes to its widest arranged subview rather than to the window, so
-    /// a stock `NSBox` separator — which has no intrinsic width — would collapse
-    /// to nothing without one.
-    private func separator() -> NSView {
-        let box = NSBox()
-        box.boxType = .separator
-        box.widthAnchor.constraint(equalToConstant: 528).isActive = true
-        return box
+    @objc private func providerChanged() {
+        folder.stringValue = ""
+        label.stringValue = ""
+        found.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let directories: [URL]
+        if AppDelegate.isDemo { directories = [] }
+        else {
+            switch selectedProvider {
+            case .claude: directories = Discovery.claudeConfigDirs(home: home)
+            case .codex: directories = Discovery.codexConfigDirs(home: home)
+            case .grok: directories = Discovery.grokConfigDirs(home: home)
+            case .kimi: directories = Discovery.kimiConfigDirs(home: home)
+            }
+        }
+        for directory in directories {
+            let text = NSTextField(labelWithString: abbreviate(directory))
+            text.lineBreakMode = .byTruncatingMiddle
+            text.widthAnchor.constraint(equalToConstant: 270).isActive = true
+            if let account = app.config.account(configDir: directory) {
+                found.addArrangedSubview(row([text, NSTextField(labelWithString: "Added as \(account.label)")]))
+            } else {
+                let use = NSButton(title: "Use", target: self, action: #selector(useFolder(_:)))
+                use.identifier = NSUserInterfaceItemIdentifier(directory.path)
+                found.addArrangedSubview(row([text, use]))
+            }
+        }
+        if directories.isEmpty { found.addArrangedSubview(NSTextField(labelWithString: "Choose a folder to add this account.")) }
+        found.frame.size = NSSize(width: 440, height: max(64, CGFloat(directories.count) * 28))
+        validate()
     }
-
-    private func abbreviate(_ url: URL) -> String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let path = url.standardizedFileURL.path
-        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+    @objc private func useFolder(_ sender: NSButton) {
+        guard let path = sender.identifier?.rawValue else { return }
+        setFolder(URL(fileURLWithPath: path))
     }
+    private func setFolder(_ url: URL) {
+        folder.stringValue = abbreviate(url)
+        if label.stringValue.isEmpty {
+            label.stringValue = url.lastPathComponent.hasPrefix(".") ? String(url.lastPathComponent.dropFirst()) : url.lastPathComponent
+        }
+        validate()
+    }
+    @objc private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.showsHiddenFiles = true
+        panel.title = "Choose \(selectedProvider.configDirectoryLabel)"
+        panel.prompt = "Choose"
+        panel.beginSheetModal(for: window!) { [weak self] response in
+            if response == .OK, let url = panel.url { self?.setFolder(url) }
+        }
+    }
+    func controlTextDidChange(_ notification: Notification) { validate() }
+    private func validate() {
+        var directory: ObjCBool = false
+        let exists = !folder.stringValue.isEmpty && FileManager.default.fileExists(atPath: selectedURL.path, isDirectory: &directory) && directory.boolValue
+        let duplicate = app.config.account(configDir: selectedURL)
+        let hasLabel = !label.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        add.isEnabled = exists && duplicate == nil && hasLabel
+        validation.stringValue = duplicate.map { "Already added as \($0.label)" }
+            ?? (!folder.stringValue.isEmpty && !exists ? "Choose an existing folder." : " ")
+    }
+    @objc private func submit() {
+        validate()
+        guard add.isEnabled else { return }
+        let account = Account(provider: selectedProvider,
+                              label: label.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
+                              configDir: selectedURL)
+        app.update { $0.register(account) }
+        if app.config.account(configDir: selectedURL) != nil { closeSheet() }
+    }
+    @objc private func cancel() { closeSheet() }
+    private func closeSheet() {
+        window?.sheetParent?.endSheet(window!)
+        completion()
+    }
+}
+
+private func row(_ views: [NSView]) -> NSStackView {
+    let stack = NSStackView(views: views)
+    stack.orientation = .horizontal
+    stack.alignment = .centerY
+    stack.spacing = 8
+    return stack
+}
+private func header(_ text: String) -> NSTextField {
+    let label = NSTextField(labelWithString: text)
+    label.font = .systemFont(ofSize: 12, weight: .semibold)
+    return label
+}
+private func abbreviate(_ url: URL) -> String {
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    let path = url.standardizedFileURL.path
+    return path == home ? "~" : (path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path)
 }

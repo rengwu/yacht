@@ -1,0 +1,12 @@
+{
+  "copiedDMGAppLaunch": "passed",
+  "providerIcons": "present",
+  "firstClickRename": "passed",
+  "remainingPercentages": "passed",
+  "usageMenuAccessibility": "passed",
+  "configurationUnchanged": true,
+  "normalInstanceRestored": true,
+  "kimiDiscovery": "default and legacy profiles listed; existing registration identified",
+  "addAccountCancelled": "passed",
+  "normalLiveFigures": "Claude, Codex, and Grok display values; Kimi displays a cached figure"
+}

@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "architectures": [
+    "x86_64",
+    "arm64"
+  ],
+  "minimumMacOS": "13.0",
+  "dmgSHA256": "ba2b041cebc387f56483eb1e33d07e687f299a334447cac5f0d6a42b5aa982e2",
+  "dmgBytes": 1005074,
+  "bundledResources": [
+    "AppIcon.icns",
+    "Lobe-LICENSE.txt",
+    "claude.pdf",
+    "codex.pdf",
+    "grok.pdf",
+    "kimi.pdf"
+  ],
+  "copiedBinaryMatchesBuild": true,
+  "signatureVerification": "passed",
+  "dmgFinderStyling": "skipped for headless check",
+  "binarySHA256": "212db91315fc166d29384b9e8f869a10447061caf953796b3b1aeada079978fc"
+}

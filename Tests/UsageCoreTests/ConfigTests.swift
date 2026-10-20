@@ -26,6 +26,11 @@ func runConfigTests(_ t: Harness) {
                     label: "alex",
                     configDir: URL(fileURLWithPath: "/Users/x/.codex-work")
                 ),
+                Account(
+                    provider: .grok,
+                    label: "grok",
+                    configDir: URL(fileURLWithPath: "/Users/x/.grok")
+                ),
             ],
             warnThreshold: 80,
             rowTemplate: "{name} {pct}",
@@ -179,43 +184,92 @@ func runConfigTests(_ t: Harness) {
         )
     }
 
-    // MARK: Discovery — .claude* directories only
+    // MARK: Discovery — separate provider lists, directories only
 
     do {
         let home = root.appendingPathComponent("home")
-        for dir in [".claude", ".claude2", ".kimi-code", ".codex", ".config", "Documents"] {
+        for dir in [".claude", ".claude2", ".grok", ".grok-work", ".kimi-code", ".kimi-code-work",
+                    ".kimi", ".kimi-work", ".kimi-webbridge", ".codex", ".codex-work", ".config", "Documents"] {
             try fm.createDirectory(
                 at: home.appendingPathComponent(dir), withIntermediateDirectories: true
             )
         }
         try Data("{}".utf8).write(to: home.appendingPathComponent(".claude.json"))  // a file, not a dir
+        try Data("{}".utf8).write(to: home.appendingPathComponent(".codex.json"))
+        try Data("{}".utf8).write(to: home.appendingPathComponent(".kimi-code.json"))
         t.checkEqual(
             Discovery.claudeConfigDirs(home: home).map(\.lastPathComponent),
             [".claude", ".claude2"],
-            "discovery finds .claude* directories but never auto-registers Kimi or Codex"
+            "Claude discovery includes only .claude* directories"
+        )
+        t.checkEqual(
+            Discovery.grokConfigDirs(home: home).map(\.lastPathComponent),
+            [".grok", ".grok-work"],
+            "Grok discovery includes only .grok* directories"
+        )
+        t.checkEqual(
+            Discovery.codexConfigDirs(home: home).map(\.lastPathComponent),
+            [".codex", ".codex-work"],
+            "Codex discovery includes default and sibling homes, excluding files and other providers"
+        )
+        t.checkEqual(
+            Discovery.kimiConfigDirs(home: home).map(\.lastPathComponent),
+            [".kimi-code", ".kimi-code-work"],
+            "Kimi discovery includes Code profiles, excluding files and other folders without credentials"
+        )
+        for legacy in [".kimi", ".kimi-work"] {
+            let credential = home.appendingPathComponent(legacy)
+                .appendingPathComponent(KimiCredentialStore.relativePath)
+            try fm.createDirectory(
+                at: credential.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+            try Data("{}".utf8).write(to: credential)
+        }
+        t.checkEqual(
+            Discovery.kimiConfigDirs(home: home).map(\.lastPathComponent),
+            [".kimi-code", ".kimi-code-work", ".kimi", ".kimi-work"],
+            "Kimi discovery includes credential-bearing legacy profiles after current Code homes"
         )
         t.checkEqual(
             Discovery.claudeConfigDirs(home: root.appendingPathComponent("nowhere")),
             [], "unreadable home → nothing discovered"
+        )
+        t.checkEqual(
+            Discovery.grokConfigDirs(home: root.appendingPathComponent("nowhere")),
+            [], "unreadable home → no Grok directories either"
+        )
+        t.checkEqual(
+            Discovery.codexConfigDirs(home: root.appendingPathComponent("nowhere")),
+            [], "unreadable home → no Codex directories"
+        )
+        t.checkEqual(
+            Discovery.kimiConfigDirs(home: root.appendingPathComponent("nowhere")),
+            [], "unreadable home → no Kimi directories"
         )
     } catch { t.check(false, "discovery fixture setup threw \(error)") }
 
     // MARK: Provider facts projected by Settings
 
     t.checkEqual(
-        Provider.allCases, [.claude, .kimi, .codex],
-        "provider picker lists Claude, Kimi, and Codex"
+        Provider.allCases, [.claude, .kimi, .codex, .grok],
+        "provider picker lists Claude, Kimi, Codex, and Grok"
     )
     t.checkEqual(Provider.claude.displayName, "Claude", "Claude picker label")
     t.checkEqual(Provider.kimi.displayName, "Kimi", "Kimi picker label")
     t.checkEqual(Provider.codex.displayName, "Codex", "Codex picker label")
+    t.checkEqual(Provider.grok.displayName, "Grok", "Grok picker label")
     t.checkEqual(
         Provider.codex.configDirectoryLabel, "Codex home folder",
         "Codex folder picker names CODEX_HOME as a home folder"
     )
+    t.checkEqual(
+        Provider.grok.configDirectoryLabel, "Grok home folder",
+        "Grok folder picker names GROK_HOME as a home folder"
+    )
     t.check(Provider.claude.usesTap, "Claude account rows expose tap controls")
     t.check(!Provider.kimi.usesTap, "Kimi account rows omit tap status and controls")
     t.check(!Provider.codex.usesTap, "Codex account rows omit tap status and controls")
+    t.check(!Provider.grok.usesTap, "Grok account rows omit tap status and controls")
 
     // MARK: Codex registration — explicit, additive, and scoped by CODEX_HOME
 
@@ -256,6 +310,34 @@ func runConfigTests(_ t: Harness) {
             "Codex accounts and the one machine-wide binary path persist across launches"
         )
     } catch { t.check(false, "Codex registration fixture setup threw \(error)") }
+
+    // MARK: Grok registration — explicit, additive, scoped by GROK_HOME
+
+    do {
+        let grok = Account(
+            provider: .grok, label: "grok",
+            configDir: URL(fileURLWithPath: "/Users/x/.grok")
+        )
+        let grokWork = Account(
+            provider: .grok, label: "work",
+            configDir: URL(fileURLWithPath: "/Users/x/.grok-work")
+        )
+        var config = AppConfig(accounts: [
+            Account(label: "claude", configDir: URL(fileURLWithPath: "/Users/x/.claude"))
+        ])
+        config.accounts.append(grok)
+        config.accounts.append(grokWork)
+        t.checkEqual(
+            config.accounts.filter { $0.provider == .grok }, [grok, grokWork],
+            "two Grok accounts retain independent GROK_HOME identities"
+        )
+        let url = root.appendingPathComponent("grok-registration.json")
+        try ConfigStore.save(config, to: url)
+        t.checkEqual(
+            ConfigStore.load(from: url), config,
+            "Grok accounts persist across launches"
+        )
+    } catch { t.check(false, "Grok registration fixture setup threw \(error)") }
 
     // MARK: Tap deployment
 

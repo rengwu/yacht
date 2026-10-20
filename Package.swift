@@ -11,7 +11,8 @@ let package = Package(
         .executableTarget(
             name: "Yacht",
             dependencies: ["UsageCore"],
-            path: "Sources/Yacht"
+            path: "Sources/Yacht",
+            resources: [.process("Resources")]
         ),
         // Tests are a plain executable run with `swift run UsageCoreTests`:
         // this machine has Command Line Tools only, and XCTest ships with Xcode.

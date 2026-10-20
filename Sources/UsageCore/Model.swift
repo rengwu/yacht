@@ -6,12 +6,14 @@ public enum Provider: String, CaseIterable, Codable {
     case claude
     case kimi
     case codex
+    case grok
 
     public var displayName: String {
         switch self {
         case .claude: return "Claude"
         case .kimi: return "Kimi"
         case .codex: return "Codex"
+        case .grok: return "Grok"
         }
     }
 
@@ -23,6 +25,7 @@ public enum Provider: String, CaseIterable, Codable {
         case .claude: return "Claude config folder"
         case .kimi: return "Kimi Code home folder"
         case .codex: return "Codex home folder"
+        case .grok: return "Grok home folder"
         }
     }
 
@@ -38,13 +41,21 @@ public enum Provider: String, CaseIterable, Codable {
 /// that selects the account is incidental and unknown to this app.
 public struct Account: Equatable {
     public let provider: Provider
-    public let label: String
+    public var label: String
     public let configDir: URL
+    public var showInMenuBar: Bool
+    /// nil follows the adapter's declared primary, including before its first reading.
+    public var menuBarWindow: UsageWindow?
 
-    public init(provider: Provider = .claude, label: String, configDir: URL) {
+    public init(
+        provider: Provider = .claude, label: String, configDir: URL,
+        showInMenuBar: Bool = true, menuBarWindow: UsageWindow? = nil
+    ) {
         self.provider = provider
         self.label = label
         self.configDir = configDir
+        self.showInMenuBar = showInMenuBar
+        self.menuBarWindow = menuBarWindow
     }
 }
 
@@ -65,7 +76,7 @@ public struct Account: Equatable {
 /// spelling a cached snapshot needs lives with the cache, in
 /// `KimiSnapshotCache`, where it is a storage format rather than a property of
 /// the domain.
-public enum UsageWindow: Equatable {
+public enum UsageWindow: Equatable, Hashable {
     case fiveHour
     case weekly
     case other(minutes: Int)
@@ -259,10 +270,10 @@ public struct AccountState: Equatable {
     public let snapshot: Snapshot?
     public let sourceState: AccountSourceState
 
-    public init(account: Account, snapshot: Snapshot?, tapStatus: TapStatus) {
+    public init(account: Account, snapshot: Snapshot?, tapStatus: TapStatus, stale: Bool = false) {
         self.account = account
         self.snapshot = snapshot
-        self.sourceState = .claude(tapStatus)
+        self.sourceState = stale ? .claudeStale(tapStatus) : .claude(tapStatus)
     }
 
     /// The Kimi adapter owns both the snapshot and its standing, so a stale
@@ -307,13 +318,36 @@ public struct AccountState: Equatable {
         }
     }
 
+    /// Grok owns both the snapshot and the reason it may be unavailable. Same
+    /// pairing as Kimi: a carried-forward figure must never reach the renderer
+    /// without its stale marker.
+    public init(account: Account, grok state: GrokProviderState) {
+        self.account = account
+        switch state {
+        case .snapshot(let snapshot):
+            self.snapshot = snapshot
+            self.sourceState = .grok(.available)
+        case .stale(let snapshot, let reason):
+            self.snapshot = snapshot
+            self.sourceState = .grok(.stale(reason))
+        case .tokenExpired:
+            self.snapshot = nil
+            self.sourceState = .grok(.tokenExpired)
+        case .unreachable:
+            self.snapshot = nil
+            self.sourceState = .grok(.unreachable)
+        }
+    }
+
     /// Impure gatherer for the composition root: reads the snapshot and detects
     /// the tap in one pass over the account's config directory.
-    public static func gather(account: Account, tapCommand: String) -> AccountState {
-        AccountState(
+    public static func gather(account: Account, tapCommand: String, previous: Snapshot? = nil) -> AccountState {
+        let snapshot = SnapshotReader.read(configDir: account.configDir)
+        return AccountState(
             account: account,
-            snapshot: SnapshotReader.read(configDir: account.configDir),
-            tapStatus: TapInstaller.detect(configDir: account.configDir, tapCommand: tapCommand)
+            snapshot: snapshot ?? previous,
+            tapStatus: TapInstaller.detect(configDir: account.configDir, tapCommand: tapCommand),
+            stale: snapshot == nil && previous != nil
         )
     }
 }
@@ -323,8 +357,10 @@ public struct AccountState: Equatable {
 /// It is only what the pure renderer needs to explain absent data.
 public enum AccountSourceState: Equatable {
     case claude(TapStatus)
+    case claudeStale(TapStatus)
     case kimi(KimiAvailability)
     case codex(CodexAvailability)
+    case grok(GrokAvailability)
 }
 
 /// `tokenExpired` and `unreachable` mean *no figure at all* — no poll has ever
@@ -346,4 +382,13 @@ public enum CodexAvailability: Equatable {
     case available
     case stale(CodexStaleReason)
     case failure(CodexFailure)
+}
+
+/// The same standings as `AccountSourceState` sees them — the note the
+/// dropdown renders for an account whose figure is absent or partial.
+public enum GrokAvailability: Equatable {
+    case available
+    case stale(GrokStaleReason)
+    case tokenExpired
+    case unreachable
 }

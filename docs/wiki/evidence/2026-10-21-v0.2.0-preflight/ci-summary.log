@@ -1,0 +1,6 @@
+test	Set up job	2026-10-20T19:30:05.3221350Z ##[group]Runner Image Provisioner
+test	Set up job	2026-10-20T19:30:05.3227700Z ##[group]Runner Image
+test	Run swift build	2026-10-20T19:30:20.9499390Z Build complete! (9.65s)
+test	Run swift run UsageCoreTests	2026-10-20T19:30:22.0722790Z Build of product 'UsageCoreTests' complete! (0.20s)
+test	Run swift run UsageCoreTests	2026-10-20T19:30:22.6311900Z pass: 448  fail: 0
+test	Run bash tap/test_tap.sh	2026-10-20T19:30:22.8885290Z pass: 21  fail: 0

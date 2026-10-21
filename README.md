@@ -20,6 +20,8 @@ Multi-account friendly, built in native Swift and AppKit.
 - Drag to order accounts; editable labels; compact stale, awaiting-update, and no-data states
 - Launch at login
 
+<img src="docs/assets/yacht-settings.png" alt="Yacht Settings showing account management, display preferences, and the menu bar preview" width="750">
+
 The current design and implementation notes are in [the project wiki](docs/wiki/index.md).
 
 ## Requirements

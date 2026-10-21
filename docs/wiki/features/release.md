@@ -7,7 +7,7 @@ updated: 2026-10-21
 
 **ID:** FEAT-release
 
-The user requested autonomous release preparation through jstack work-until-grill, including a version bump. The next candidate is **0.2.0**, following published 0.1.6. Distribution remains the existing ad-hoc-signed GitHub DMG; publication has not occurred.
+The user requested autonomous release preparation through jstack work-until-grill, including a version bump, then authorized publication after merging PR #1. **0.2.0 is published**, following 0.1.6. Distribution remains the existing ad-hoc-signed GitHub DMG.
 
 ## Expected outcomes
 
@@ -32,4 +32,5 @@ Automated suites cover config migration, account identity, percentage semantics,
 
 ## Verification history
 
+- [0.2.0 publication](../verification/runs/2026-10-21-v0.2.0-publication.md): tag workflow passed; both published downloads, checksums, universal bundle, and signature verified.
 - [0.2.0 preflight](../verification/runs/2026-10-21-v0.2.0-preflight.md): packaging and exercised checks passed; fresh Kimi request remains untested because credentials are expired.

@@ -1,0 +1,4 @@
+Release workflow 39578082672: success
+Source: e3b7293eee042c4a71f6bfc03c853b6e9987e041
+release	Verify version and tests	2026-10-21T09:35:34.3213860Z pass: 448  fail: 0
+release	Verify version and tests	2026-10-21T09:35:34.6432190Z pass: 21  fail: 0

@@ -40,7 +40,7 @@ node docs/wiki/_build.mjs --check
 
 The core suite currently reports **448 passed, zero failed**: the original 405 checks, 38 checks for native presentation and persistence, and five Codex/Kimi discovery regression checks. Coverage includes remaining/used semantics, warning precedence, reset boundaries, unknown values, selected/missing windows, Off, same-provider registration, duplicate rejection, reorder identity, rename preservation, and old-config decoding. Discovery checks cover default and sibling profiles, file exclusion, provider isolation, credential-bearing legacy Kimi profiles, unrelated Kimi folders, and an unreadable home.
 
-The release bundle is `build/Yacht.app`, built and ad-hoc signed by `build.sh`. It has not replaced an installed copy. Publication is pending the final release decision.
+The release bundle is `build/Yacht.app`, built and ad-hoc signed by `build.sh`. It has not replaced an installed copy. [Version 0.2.0 is published and its downloaded assets verified](verification/runs/2026-10-21-v0.2.0-publication.md).
 
 Computer-use checks on the offline native demo:
 

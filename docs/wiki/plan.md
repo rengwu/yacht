@@ -75,7 +75,7 @@ The next review replaces the reset-passed hourglass with a muted dash in both th
 
 ### Accounts table refinement
 
-Release preparation targets **0.2.0** at the user's request. The versioned universal app and local DMG are built; core, tap, packaging, and selected UI checks pass. See the [release preflight](verification/runs/2026-10-21-v0.2.0-preflight.md). Fresh Kimi verification is pending renewal of the user's expired CLI session. Publication is pending the final release decision.
+**0.2.0 is released.** After merging PR #1, the user instructed “i merged. lets release,” resolving the pending publication decision. The tag workflow and downloaded-asset checks passed; see the [publication record](verification/runs/2026-10-21-v0.2.0-publication.md). The earlier [release preflight](verification/runs/2026-10-21-v0.2.0-preflight.md) retains its scope and limits: fresh Kimi verification remains untested because the saved CLI sessions were expired.
 
 The [table review](journal/2026-10-20-grill-38baa3c1-ee26-4927-a545-81600f42bc14.md) selects compact layout A over the version showing every folder path. Keep the selected folder in the bottom bar, native row selection, reordering, provider identity, and each account's menu-bar window choice.
 
@@ -185,3 +185,4 @@ When figures exceed the space beside the notch, macOS may hide the status item. 
 - 2026-10-20: User reopened the Accounts table design, supplied the macOS Sound device table as a reference, and requested a couple of mock redesigns through the updated jstack grill-form. Two interactive studies were created and visually inspected in the default browser. Feedback is pending; no app code or registrations changed for this review.
 - 2026-10-20: Table review submitted: A selected, with a content-sized label editor and the Input Monitoring grouped table as the specific reference. Both attached images were inspected. A revised mockup was prepared, preserving the user's fictional preview state; native app implementation remains pending.
 - 2026-10-21: Refined table approved for implementation. The user reinforced `rule-lean` with the Developer Tools list as a simplicity reference. The compact AppKit table is implemented. A final instruction prioritizes Apple’s native guidelines over custom styling; validation and remaining limits are recorded on the native implementation page.
+- 2026-10-21: User merged PR #1 and directly authorized release, superseding the pending release-choice form. Published v0.2.0 from merged commit `e3b7293`. The user also supplied a screenshot for the README; it was added unchanged and pushed separately from the release tag.

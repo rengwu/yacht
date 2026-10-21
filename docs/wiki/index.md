@@ -6,10 +6,11 @@ order: 0
 
 # AI subscription tracker
 
-The accepted design has a local native Swift/AppKit implementation. Start with the implementation page for current validation and limits. The earlier dashboard redesign remains rejected.
+The accepted native Swift/AppKit design is released as **0.2.0**. Start with the publication and implementation pages for current validation and limits. The earlier dashboard redesign remains rejected.
 
 - [Current plan and open decisions](plan.md)
 - [Native implementation and validation](native-implementation.md)
+- [0.2.0 publication and download verification](verification/runs/2026-10-21-v0.2.0-publication.md)
 - [0.2.0 release preflight](verification/runs/2026-10-21-v0.2.0-preflight.md)
 - [Feature verification](features/index.md)
 - [Design handoff: start here to implement](design-handoff.md)

@@ -1,0 +1,42 @@
+{
+  "releaseURL": "https://github.com/rengwu/yacht/releases/tag/v0.2.0",
+  "publishedAt": "2026-10-21T09:37:02Z",
+  "tag": "v0.2.0",
+  "sourceCommit": "e3b7293eee042c4a71f6bfc03c853b6e9987e041",
+  "workflowURL": "https://github.com/rengwu/yacht/actions/runs/39578082672",
+  "latestRelease": true,
+  "assets": [
+    {
+      "name": "yacht-v0.2.0.dmg",
+      "sha256": "0be23b8fc3b3e6a4f557afbd503ed8c693a7faf3d3f8955d4add1d23ba0d61d1",
+      "bytes": 1017477,
+      "url": "https://github.com/rengwu/yacht/releases/download/v0.2.0/yacht-v0.2.0.dmg"
+    },
+    {
+      "name": "Yacht.dmg",
+      "sha256": "0be23b8fc3b3e6a4f557afbd503ed8c693a7faf3d3f8955d4add1d23ba0d61d1",
+      "bytes": 1017477,
+      "url": "https://github.com/rengwu/yacht/releases/download/v0.2.0/Yacht.dmg"
+    }
+  ],
+  "stableDownloadMatchesVersionedAsset": true,
+  "dmgIntegrity": "passed",
+  "applicationsLink": "/Applications",
+  "bundleVersion": "0.2.0",
+  "minimumMacOS": "13.0",
+  "architectures": [
+    "x86_64",
+    "arm64"
+  ],
+  "signatureVerification": "passed",
+  "binarySHA256": "4867c6e4a8c172f033d045519eea88625ab620d98df708891bfde60a7cbaea6b",
+  "bundledResources": [
+    "AppIcon.icns",
+    "Lobe-LICENSE.txt",
+    "claude.pdf",
+    "codex.pdf",
+    "grok.pdf",
+    "kimi.pdf"
+  ],
+  "launchedDownloadedApp": false
+}

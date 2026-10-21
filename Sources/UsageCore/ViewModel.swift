@@ -151,9 +151,11 @@ private func barTone(_ percentage: Double, settings: AppSettings, stale: Bool) -
     return stale && live == .normal ? .dimmed : live
 }
 
-private func isStale(_ state: AccountSourceState) -> Bool {
+func isStale(_ state: AccountSourceState) -> Bool {
+    if case .claudeStale = state { return true }
     if case .kimi(.stale) = state { return true }
     if case .codex(.stale) = state { return true }
+    if case .grok(.stale) = state { return true }
     return false
 }
 
@@ -230,7 +232,7 @@ private func effectivePercentage(_ row: UsageRow, now: Date) -> Double {
     now >= row.resetsAt ? 0 : row.percentage
 }
 
-private func tone(_ percentage: Double, _ settings: AppSettings) -> Tone {
+func tone(_ percentage: Double, _ settings: AppSettings) -> Tone {
     if percentage >= settings.criticalThreshold { return .critical }
     if percentage >= settings.warnThreshold { return .warn }
     return .normal
@@ -240,10 +242,12 @@ private func tone(_ percentage: Double, _ settings: AppSettings) -> Tone {
 /// and neither must a figure that is not being refreshed. Kimi token expiry is
 /// its normal resting state under the read-only credential boundary, so it is
 /// explanatory/dimmed rather than presented as a fault; a failed poll warns.
-private func providerNote(
+func providerNote(
     _ state: AccountSourceState, hasSnapshot: Bool, snapshot: Snapshot?, now: Date
 ) -> StyledText? {
     switch state {
+    case .claudeStale:
+        return StyledText("couldn't read Claude usage — showing the last reading", .dimmed)
     case .claude(.installed) where hasSnapshot:
         return nil
     case .claude(.installed):
@@ -283,12 +287,26 @@ private func providerNote(
         }
     case .codex(.failure(let failure)):
         return StyledText(failure.message, .warn)
+    case .grok(.available):
+        return nil
+    case .grok(.stale(let reason)):
+        let age = snapshot.map { Format.age(of: $0.updatedAt, at: now) } ?? "a while"
+        switch reason {
+        case .tokenExpired:
+            return StyledText("last fetched \(age) — grok hasn't run since", .dimmed)
+        case .unreachable:
+            return StyledText("last fetched \(age) — couldn't reach Grok since", .warn)
+        }
+    case .grok(.tokenExpired):
+        return StyledText("token expired — run grok to refresh", .dimmed)
+    case .grok(.unreachable):
+        return StyledText("couldn't reach Grok", .warn)
     }
 }
 
 // MARK: - Formatting
 
-enum Format {
+public enum Format {
     /// Substitutes the known tokens and leaves everything else — including any
     /// token it does not know — standing as literal text. `padPercent` is off for
     /// the menu bar: the column alignment exists for a vertical list of rows, and

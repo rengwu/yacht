@@ -15,7 +15,7 @@ func runCodexProviderTests(_ t: Harness) {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
     let fixtureURL = repo.appendingPathComponent(
-        ".plan/codex-provider/assets/appserver-ratelimits-plus.json"
+        ".plan/maps/codex-provider/assets/appserver-ratelimits-plus.json"
     )
     let fixture = (try? Data(contentsOf: fixtureURL)) ?? Data()
     let capturedAt = Date(timeIntervalSince1970: 1_800_000_000)

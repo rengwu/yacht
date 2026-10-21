@@ -1,0 +1,6 @@
+[0/1] Planning build
+Building for debugging...
+[0/3] Write swift-version--58304C5D6DBC2206.txt
+Build of product 'UsageCoreTests' complete! (0.19s)
+----
+pass: 448  fail: 0

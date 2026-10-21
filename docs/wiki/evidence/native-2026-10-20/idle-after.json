@@ -1,0 +1,15 @@
+{
+  "scope": "release --demo --contrast; eight fixture accounts; settings open; no provider requests; cached status image",
+  "elapsed_seconds": 20.01,
+  "start": {
+    "cpu_seconds": 0.6,
+    "rss_kib": 98704,
+    "instant_cpu_percent": 0.0
+  },
+  "end": {
+    "cpu_seconds": 0.6,
+    "rss_kib": 98608,
+    "instant_cpu_percent": 0.0
+  },
+  "average_cpu_percent_one_core": 0.0
+}

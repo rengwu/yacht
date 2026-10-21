@@ -13,10 +13,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify version and tests
+        run: |
+          test "${GITHUB_REF_NAME#v}" = "$(cat VERSION)"
+          test -f "docs/releases/${GITHUB_REF_NAME#v}.md"
+          swift run UsageCoreTests
+          command -v jq >/dev/null || brew install jq
+          bash tap/test_tap.sh
+
       - name: Build
         run: |
           version="${GITHUB_REF_NAME#v}"
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
           ./build.sh "$version"
+          lipo build/Yacht.app/Contents/MacOS/Yacht -verify_arch arm64 x86_64
 
       - name: Build DMG
         run: |
@@ -37,6 +47,7 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: docs/releases/${{ env.RELEASE_VERSION }}.md
           files: |
             build/yacht-*.dmg
             build/Yacht.dmg

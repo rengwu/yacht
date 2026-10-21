@@ -1,0 +1,16 @@
+{
+  "scope": "final release --demo; eight fixture accounts; settings open; system dark appearance; no provider requests; spans a UI minute boundary",
+  "binary_sha256": "c6003fc140b11e5873a685bd48bc2ea3d0d8a4b06ac9cb8e4a23bf5796c9caf0",
+  "elapsed_seconds": 65.02,
+  "start": {
+    "cpu_seconds": 6.0,
+    "rss_kib": 117936,
+    "instant_cpu_percent": 0.0
+  },
+  "end": {
+    "cpu_seconds": 6.08,
+    "rss_kib": 112144,
+    "instant_cpu_percent": 0.0
+  },
+  "average_cpu_percent_one_core": 0.123
+}

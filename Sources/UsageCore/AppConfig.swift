@@ -15,6 +15,7 @@ public struct AppConfig: Equatable, Codable {
     /// A user-selected codex executable, shared by every Codex account on this
     /// machine. `nil` means discover one from the settled candidate list.
     public var codexBinaryPath: String?
+    public var display: DisplayPreferences
 
     public init(
         accounts: [Account] = [],
@@ -26,7 +27,8 @@ public struct AppConfig: Equatable, Codable {
         menuBarNoDataTemplate: String = AppSettings.defaultMenuBarNoDataTemplate,
         menuBarSeparator: String = AppSettings.defaultMenuBarSeparator,
         menuBarMaxAccounts: Int = 0,
-        codexBinaryPath: String? = nil
+        codexBinaryPath: String? = nil,
+        display: DisplayPreferences = DisplayPreferences()
     ) {
         self.accounts = accounts
         self.warnThreshold = warnThreshold
@@ -38,6 +40,7 @@ public struct AppConfig: Equatable, Codable {
         self.menuBarSeparator = menuBarSeparator
         self.menuBarMaxAccounts = menuBarMaxAccounts
         self.codexBinaryPath = codexBinaryPath
+        self.display = display
     }
 
     /// Every field is optional on the way in, falling back to its default. A
@@ -62,7 +65,9 @@ public struct AppConfig: Equatable, Codable {
             menuBarSeparator: try c.decodeIfPresent(String.self, forKey: .menuBarSeparator)
                 ?? AppSettings.defaultMenuBarSeparator,
             menuBarMaxAccounts: try c.decodeIfPresent(Int.self, forKey: .menuBarMaxAccounts) ?? 0,
-            codexBinaryPath: try c.decodeIfPresent(String.self, forKey: .codexBinaryPath)
+            codexBinaryPath: try c.decodeIfPresent(String.self, forKey: .codexBinaryPath),
+            display: try c.decodeIfPresent(DisplayPreferences.self, forKey: .display)
+                ?? DisplayPreferences()
         )
     }
 
@@ -95,15 +100,28 @@ public struct AppConfig: Equatable, Codable {
     public mutating func relabel(configDir: URL, to label: String) {
         guard let i = accounts.firstIndex(where: { $0.configDir.isSameDirectory(as: configDir) })
         else { return }
-        accounts[i] = Account(
-            provider: accounts[i].provider,
-            label: label,
-            configDir: accounts[i].configDir
-        )
+        accounts[i].label = label
     }
 
     public func account(configDir: URL) -> Account? {
         accounts.first { $0.configDir.isSameDirectory(as: configDir) }
+    }
+
+    /// Folder identity is stable across edits and reordering. A duplicate registration
+    /// must not start a second poller or make remove/rename affect two rows.
+    @discardableResult
+    public mutating func register(_ account: Account) -> Bool {
+        guard self.account(configDir: account.configDir) == nil else { return false }
+        accounts.append(account)
+        return true
+    }
+
+    public mutating func moveAccount(configDir: URL, before destination: Int) {
+        guard let source = accounts.firstIndex(where: { $0.configDir.isSameDirectory(as: configDir) })
+        else { return }
+        let target = max(0, min(accounts.count, destination))
+        let account = accounts.remove(at: source)
+        accounts.insert(account, at: target > source ? target - 1 : target)
     }
 }
 
@@ -114,7 +132,9 @@ extension URL {
 }
 
 extension Account: Codable {
-    enum CodingKeys: String, CodingKey { case provider, label, configDir }
+    enum CodingKeys: String, CodingKey {
+        case provider, label, configDir, showInMenuBar, menuBarWindow
+    }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -124,7 +144,9 @@ extension Account: Codable {
             // not a malformed row.
             provider: try c.decodeIfPresent(Provider.self, forKey: .provider) ?? .claude,
             label: try c.decode(String.self, forKey: .label),
-            configDir: URL(fileURLWithPath: try c.decode(String.self, forKey: .configDir))
+            configDir: URL(fileURLWithPath: try c.decode(String.self, forKey: .configDir)),
+            showInMenuBar: try c.decodeIfPresent(Bool.self, forKey: .showInMenuBar) ?? true,
+            menuBarWindow: try c.decodeIfPresent(UsageWindow.self, forKey: .menuBarWindow)
         )
     }
 
@@ -133,6 +155,8 @@ extension Account: Codable {
         try c.encode(provider, forKey: .provider)
         try c.encode(label, forKey: .label)
         try c.encode(configDir.path, forKey: .configDir)
+        try c.encode(showInMenuBar, forKey: .showInMenuBar)
+        try c.encodeIfPresent(menuBarWindow, forKey: .menuBarWindow)
     }
 }
 
@@ -157,17 +181,46 @@ public enum ConfigStore {
 }
 
 /// Auto-discovery: config directories adjacent to the default one — hidden
-/// directories in the home whose name starts with ".claude". A convenience;
-/// the manual folder picker is what makes it non-binding.
+/// directories in the home whose name starts with a provider's dot prefix.
+/// A convenience; the manual folder picker is what makes it non-binding.
 public enum Discovery {
+    /// Claude names the convention itself (`~/.claude`, `~/.claude-work`).
     public static func claudeConfigDirs(home: URL) -> [URL] {
+        hiddenDirectories(home: home, withPrefix: ".claude")
+    }
+
+    /// The default Codex home and sibling profiles such as `~/.codex-work`.
+    public static func codexConfigDirs(home: URL) -> [URL] {
+        hiddenDirectories(home: home, withPrefix: ".codex")
+    }
+
+    /// Current Kimi Code homes first, then legacy `.kimi*` homes with credentials.
+    public static func kimiConfigDirs(home: URL) -> [URL] {
+        let directories = hiddenDirectories(home: home, withPrefix: ".kimi")
+        let current = directories.filter { $0.lastPathComponent.hasPrefix(".kimi-code") }
+        let legacy = directories.filter {
+            !$0.lastPathComponent.hasPrefix(".kimi-code")
+                && FileManager.default.fileExists(
+                    atPath: $0.appendingPathComponent(KimiCredentialStore.relativePath).path
+                )
+        }
+        return current + legacy
+    }
+
+    /// Grok has one canonical home per account (`~/.grok`; further accounts via
+    /// `GROK_HOME`), and its folder follows the same dot convention.
+    public static func grokConfigDirs(home: URL) -> [URL] {
+        hiddenDirectories(home: home, withPrefix: ".grok")
+    }
+
+    private static func hiddenDirectories(home: URL, withPrefix prefix: String) -> [URL] {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(
             at: home, includingPropertiesForKeys: [.isDirectoryKey]
         ) else { return [] }
         return entries
             .filter {
-                $0.lastPathComponent.hasPrefix(".claude")
+                $0.lastPathComponent.hasPrefix(prefix)
                     && (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
             }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }

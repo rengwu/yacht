@@ -13,3 +13,5 @@ jobs:
       - uses: actions/checkout@v4
       - run: swift build
       - run: swift run UsageCoreTests
+      - run: command -v jq >/dev/null || brew install jq
+      - run: bash tap/test_tap.sh

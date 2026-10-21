@@ -1,0 +1,15 @@
+{
+  "scope": "release --demo --contrast; eight fixture accounts; settings open; no provider requests",
+  "elapsed_seconds": 20.01,
+  "start": {
+    "cpu_seconds": 88.95,
+    "rss_kib": 118752,
+    "instant_cpu_percent": 98.3
+  },
+  "end": {
+    "cpu_seconds": 106.4,
+    "rss_kib": 106160,
+    "instant_cpu_percent": 79.8
+  },
+  "average_cpu_percent_one_core": 87.221
+}

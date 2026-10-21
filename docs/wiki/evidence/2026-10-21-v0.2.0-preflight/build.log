@@ -1,0 +1,19 @@
+[0/1] Planning build
+Building for production...
+[0/2] Write swift-version--58304C5D6DBC2206.txt
+Build of product 'Yacht' complete! (0.21s)
+Building for production...
+[0/10] Write sources
+[2/10] Copying codex.pdf
+[2/10] Copying Lobe-LICENSE.txt
+[2/10] Copying grok.pdf
+[2/10] Copying kimi.pdf
+[5/10] Copying claude.pdf
+[7/10] Write swift-version--58304C5D6DBC2206.txt
+[9/11] Compiling UsageCore AppConfig.swift
+[10/12] Compiling Yacht AccountsTableViews.swift
+[10/12] Write Objects.LinkFileList
+[11/12] Linking Yacht
+Build of product 'Yacht' complete! (12.43s)
+<project>/build/Yacht.app: replacing existing signature
+built: <project>/build/Yacht.app

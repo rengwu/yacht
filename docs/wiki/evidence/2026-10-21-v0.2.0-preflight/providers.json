@@ -1,0 +1,19 @@
+{
+  ".kimi" : {
+    "credentialReadable" : true,
+    "tokenLive" : false
+  },
+  ".kimi-code" : {
+    "credentialReadable" : true,
+    "tokenLive" : false
+  },
+  "claude" : {
+    "activeWindows" : 2,
+    "snapshotParses" : true,
+    "tap" : "installed"
+  },
+  "grok" : {
+    "httpStatus" : 200,
+    "usageParses" : true
+  }
+}

@@ -14,7 +14,7 @@ func runKimiProviderTests(_ t: Harness) {
         .deletingLastPathComponent()
         .deletingLastPathComponent()
         .deletingLastPathComponent()
-    let assets = repo.appendingPathComponent(".plan/multi-provider/assets")
+    let assets = repo.appendingPathComponent(".plan/maps/multi-provider/assets")
 
     func fixture(_ name: String) -> Data {
         (try? Data(contentsOf: assets.appendingPathComponent(name))) ?? Data()

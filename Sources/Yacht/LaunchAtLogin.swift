@@ -13,6 +13,9 @@ import os
 /// records the outcome. Either mechanism satisfies the same `LoginItem` contract,
 /// so the settings window and the rest of the app never know which one won.
 protocol LoginItem {
+    /// Can this copy of the app be a login item at all? False for a loose
+    /// executable — see `UnsupportedLoginItem`.
+    var isSupported: Bool { get }
     /// The live system fact: will this app launch at the next login?
     var isEnabled: Bool { get }
     /// Register or unregister. Throws if the system refused; the caller surfaces
@@ -20,11 +23,16 @@ protocol LoginItem {
     func setEnabled(_ enabled: Bool) throws
 }
 
+extension LoginItem {
+    var isSupported: Bool { true }
+}
+
 enum LaunchAtLogin {
     /// The mechanism chosen for this build. Resolved once by the ticket-04
     /// experiment (see `chooseMechanism`), not re-decided per launch.
     static let item: LoginItem = chooseMechanism()
 
+    static var isSupported: Bool { item.isSupported }
     static var isEnabled: Bool { item.isEnabled }
     static func setEnabled(_ enabled: Bool) throws { try item.setEnabled(enabled) }
 }
@@ -110,6 +118,36 @@ struct LaunchAgentLoginItem: LoginItem {
     }
 }
 
+// MARK: - Unbundled builds
+
+/// The refusal used when the running code is a loose executable rather than an
+/// `.app` — i.e. a `swift run` / `.build` development copy.
+///
+/// Registering one of those is not a harmless no-op: the system dutifully honours
+/// it, and because a bare Unix executable has no bundle to open, macOS launches
+/// it *through Terminal*. The first sign is a stray Terminal window at the next
+/// login, months later, pointing at a `.build` path that may not even exist any
+/// more. So the dev copy declines to register at all; only an installed
+/// `Yacht.app` may become a login item.
+struct UnsupportedLoginItem: LoginItem {
+    var isSupported: Bool { false }
+    var isEnabled: Bool { false }
+
+    func setEnabled(_ enabled: Bool) throws {
+        guard enabled else { return }  // "off" is already the truth
+        throw LoginItemError.notAnAppBundle
+    }
+}
+
+enum LoginItemError: LocalizedError {
+    case notAnAppBundle
+
+    var errorDescription: String? {
+        "Launch at login needs Yacht to be running as an app. This copy is a "
+            + "loose executable, so the system would launch it through Terminal."
+    }
+}
+
 // MARK: - Mechanism choice (ticket-04 experiment outcome)
 
 private let bundleIdentifier = "local.yacht"
@@ -124,12 +162,23 @@ private let bundleIdentifier = "local.yacht"
 /// ships; the launch-agent path below stays as a documented, compile-guarded
 /// fallback (build with `-DLOGIN_USE_LAUNCH_AGENT`) for a future context where an
 /// ad-hoc bundle *is* refused.
+///
+/// Both mechanisms are gated on actually being an `.app` first — see
+/// `UnsupportedLoginItem` for why a `.build` copy must never register.
 func chooseMechanism() -> LoginItem {
+    guard isRunningFromAppBundle() else { return UnsupportedLoginItem() }
     #if LOGIN_USE_LAUNCH_AGENT
     return launchAgentItem()
     #else
     return SMAppServiceLoginItem()
     #endif
+}
+
+/// True only when the executable sits inside a real `Foo.app`. A SwiftPM binary
+/// run straight out of `.build` still has a `Bundle.main` — it is just the
+/// containing directory, with no `.app` extension and no bundle identifier.
+private func isRunningFromAppBundle() -> Bool {
+    Bundle.main.bundleURL.pathExtension == "app" && Bundle.main.bundleIdentifier != nil
 }
 
 private func launchAgentItem() -> LaunchAgentLoginItem {

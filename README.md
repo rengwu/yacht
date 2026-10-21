@@ -5,6 +5,8 @@ Multi-account friendly, built in native Swift and AppKit.
 
 [![Download for macOS](https://img.shields.io/badge/Download-macOS-blue?style=for-the-badge)](https://github.com/rengwu/yacht/releases/latest/download/Yacht.dmg)
 
+<img src="docs/assets/yacht-demo.png" alt="Yacht's native macOS menu showing usage for Claude, Codex, Grok, and Kimi accounts" width="483">
+
 ## Features
 
 - Four providers side by side — **Claude Code**, **Kimi Code**, **Codex CLI**, and **Grok**

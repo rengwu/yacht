@@ -25,12 +25,27 @@ The current design and implementation notes are in [the project wiki](docs/wiki/
 ## Requirements
 
 - macOS 13+, on Apple Silicon or Intel
-- For Claude accounts: `jq` available to the Claude CLI's shell (for example, `brew install jq`).
-- For Codex accounts: the `codex` CLI installed and logged in. Yacht runs it read-only and never
-  touches its credentials.
+- For Claude accounts: Claude Code installed and logged in, with `jq` available to its shell
+  (for example, `brew install jq`).
+- For Kimi accounts: Kimi Code installed and logged in. Yacht reads the existing access token;
+  use the CLI to renew an expired session.
+- For Codex accounts: the `codex` CLI installed and logged in. Yacht asks it for usage;
+  the CLI handles authentication, and Yacht does not read or write its credential files directly.
 - For Grok accounts: the `grok` CLI installed and logged in. Yacht reads that account's session
   token and asks grok.com for the same weekly usage bar the TUI's **Usage limit** tab shows. It
   never writes `auth.json` and never refreshes the token.
+
+## Install
+
+1. [Download Yacht.dmg](https://github.com/rengwu/yacht/releases/latest/download/Yacht.dmg).
+2. Open the DMG and drag **Yacht** into **Applications**. Quit an older running copy before replacing it.
+3. Open Yacht from Applications. Settings opens automatically when no accounts are registered.
+
+The app is ad-hoc signed, not notarized. If macOS blocks a download you trust, try opening it
+once, then use **System Settings → Privacy & Security → Open Anyway**, as described in
+[Apple's first-launch instructions](https://support.apple.com/en-ph/102445).
+
+Upgrading preserves your registered accounts and settings.
 
 ## Build
 
@@ -79,7 +94,7 @@ silently. Usage data appears after Claude Code's next turn for that account.
 ### Kimi
 
 Nothing to install — register the Kimi Code home folder (`~/.kimi-code` by default) and Yacht
-polls Kimi for that account. It reads the existing session's access token and nothing else; if
+polls Kimi for that account. It uses the existing session's access token without changing it; if
 that token has expired, the account shows a stale clock or no-data dash. Hover its label for the
 reason; use `kimi` again to renew the session.
 
@@ -92,8 +107,8 @@ executable serves every Codex account.
 ### Grok
 
 Nothing to install. Register the Grok home folder (`~/.grok` by default) and Yacht polls grok.com
-for that account's weekly usage pool — the same figure `/usage` draws as **Weekly limit**. It reads
-the existing session's access token and nothing else; if that token has expired, a stale clock or
+for that account's weekly usage pool — the same figure `/usage` draws as **Weekly limit**. It uses
+the existing session's access token without changing it; if that token has expired, a stale clock or
 no-data dash appears. Hover the label for details, and use `grok` again to renew the session.
 
 ## Running multiple accounts
@@ -134,15 +149,14 @@ inside that account's Claude config directory. The app polls those snapshot
 files and renders them in the menu bar and dropdown. This Claude adapter never
 talks to the network.
 
-The tap is deliberately inert: it prints nothing (so it never appears as a
-visible status line), always exits `0`, and writes atomically, so it can
-never break the Claude Code session hosting it.
+The tap prints nothing, so it never appears as a visible status line. It exits `0` on errors
+and writes snapshots atomically.
 
 ### Kimi — a read-only poll
 
-Kimi has no status-line hook, so Yacht pulls instead: it reads the access token already sitting in
-that account's `credentials/kimi-code.json` and asks Kimi's usage endpoint. It never writes that
-file and never refreshes the token — Kimi rotates refresh tokens itself, and a competing writer
+Yacht reads the access token and expiry from that account's `credentials/kimi-code.json` and
+asks Kimi's usage endpoint. It never writes that file and never refreshes the token —
+Kimi rotates refresh tokens itself, and a competing writer
 could log you out. An expired token therefore shows as expired rather than being renewed.
 
 ### Codex — its own binary, asked directly
@@ -153,13 +167,6 @@ from the vendor's own code path rather than a re-implementation of it. Yacht nev
 file under `CODEX_HOME/sessions` — never the contents — to tell an active session from an idle
 one.
 
-The pulled providers (Kimi, Codex, Grok) poll about once a minute while the account looks live —
-an unexpired Kimi or Grok token, a recently written Codex session — and back off to every 15
-minutes when it doesn't. Opening the dropdown bypasses that wait. When a poll can't be made, the
-last known figure is carried forward and marked stale rather than blanked; a stale figure dims,
-unless it is at or above the warning threshold, where it keeps its color because there is still an
-alarm to take.
-
 ### Grok — the same weekly bar as `/usage`
 
 Grok's TUI already fetches the weekly pool from
@@ -168,6 +175,18 @@ sitting in that account's `auth.json` and asks the same endpoint, so the menu ba
 `creditUsagePercent` against the period's reset — not a reconstruction from local transcripts. It
 never writes `auth.json` and never refreshes the token. An expired token therefore shows as expired
 rather than being renewed.
+
+### Refresh timing and saved readings
+
+Kimi and Grok poll about once a minute while their saved tokens are unexpired. If credentials
+are missing or expired, Yacht skips network requests and checks the local credentials every minute
+for a renewed session. Codex polls about once a minute while a session has recent activity and
+every 15 minutes while idle.
+
+Opening the dropdown or choosing **Refresh** requests an immediate update; Kimi and Grok still
+need valid credentials. When an update fails, the last known figure remains visible with a stale
+clock. Stale figures dim unless they meet the warning threshold. Once a quota's reset time passes,
+its figure becomes a dash until a fresh reading arrives.
 
 ## Development
 
@@ -188,8 +207,7 @@ Demo mode opens Settings; **Yacht → Usage Preview (Demo)** (⌘U) opens the sa
 menu beside it. Add `--light` or `--contrast` to inspect light or high-contrast light appearance
 without changing the system setting. Launch-at-login and tap installation are disabled in demo mode.
 
-Tests are a plain executable, not an XCTest bundle — this repo targets a
-Command Line Tools–only toolchain, and XCTest ships with Xcode.
+Tests run as a plain executable with the Command Line Tools toolchain.
 
 Project layout:
 
@@ -205,19 +223,19 @@ Project layout:
 
 ## Releasing
 
-Update `VERSION`, commit the release changes, then push the matching tag:
+Set `VERSION` to the new version and add matching notes at `docs/releases/<version>.md`.
+Merge those changes into `main` and wait for CI to pass, then tag that commit:
 
-```
-git tag v0.2.0
-git push origin v0.2.0
+```sh
+git switch main
+git pull --ff-only
+release_version="$(cat VERSION)"
+git tag -a "v${release_version}" -m "Release Yacht ${release_version}"
+git push origin "v${release_version}"
 ```
 
 This triggers `.github/workflows/release.yml`, which verifies the tag matches `VERSION`,
 runs the core and tap tests, builds both CPU architectures, verifies the app signature,
 packages it as a DMG, and publishes a GitHub Release with the
-DMG attached. Every push and PR to `main` also runs
+versioned DMG and an unversioned `Yacht.dmg` for the download link. Every push and PR to `main` also runs
 `.github/workflows/ci.yml` (build + core and tap tests).
-
-The app is ad-hoc signed, not notarized. For a trusted download that macOS blocks,
-Apple documents the first-launch approval under **System Settings → Privacy & Security → Open Anyway**:
-[Safely open apps on your Mac](https://support.apple.com/en-ph/102445).
